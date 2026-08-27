@@ -16,7 +16,7 @@
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*"]
+    "run_worker_first": true
   },
 
   "version_metadata": { "binding": "VERSION" },
@@ -42,8 +42,22 @@
   ],
   "queues": {
     "producers": [{ "binding": "INGEST_QUEUE", "queue": "rectify-ingest" }],
-    "consumers": [{ "queue": "rectify-ingest", "max_batch_size": 5, "max_batch_timeout": 5 }]
+    "consumers": [{
+      "queue": "rectify-ingest",
+      "max_batch_size": 5,
+      "max_batch_timeout": 5,
+      "max_retries": 5,
+      "retry_delay": 30,
+      "dead_letter_queue": "rectify-ingest-dlq"
+    }]
   },
+  "ratelimits": [
+    {
+      "name": "INGEST_RATE",
+      "namespace_id": "8291",
+      "simple": { "limit": 30, "period": 60 }
+    }
+  ],
   "workflows": [
     { "binding": "INGEST", "name": "ingest", "class_name": "IngestWorkflow" }
   ],

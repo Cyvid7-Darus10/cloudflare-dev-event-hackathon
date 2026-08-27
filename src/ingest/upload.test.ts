@@ -111,6 +111,15 @@ describe("handleUpload", () => {
     expect(response.status).toBe(400);
   });
 
+  it("rejects a non-document so R2 never stores an executable", async () => {
+    const f = fakes();
+    const fd = new FormData();
+    fd.append("file", new File(["MZ"], "tool.exe", { type: "application/x-msdownload" }));
+    const response = await handleUpload(upload(fd), { ...env, ...f } as any);
+    expect(response.status).toBe(400);
+    expect(f.started).toHaveLength(0);
+  });
+
   it("gives the same document id for the same invoice uploaded twice", async () => {
     const f = fakes();
     await handleUpload(upload(form("a.pdf", "identical")), { ...env, ...f } as any);

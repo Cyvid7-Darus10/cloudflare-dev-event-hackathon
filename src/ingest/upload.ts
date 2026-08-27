@@ -1,4 +1,5 @@
 import { documentId, documentKey } from "./hash";
+import { inspectUpload, MAX_UPLOAD_BYTES, safeFilename } from "../platform/safety";
 
 /**
  * `POST /api/documents` — the front door.
@@ -60,8 +61,20 @@ export async function handleUpload(request: Request, env: UploadEnv): Promise<Re
   const file = form.get("file");
   if (!(file instanceof File)) return badRequest("no file field in the upload");
 
+  const unsafe = inspectUpload(file);
+  if (unsafe) {
+    const status = unsafe.startsWith("file too large") ? 413 : 400;
+    return Response.json({ error: unsafe }, { status });
+  }
+
   const bytes = await file.arrayBuffer();
   if (bytes.byteLength === 0) return badRequest("the uploaded file is empty");
+  if (bytes.byteLength > MAX_UPLOAD_BYTES) {
+    return Response.json(
+      { error: `file too large (max ${MAX_UPLOAD_BYTES} bytes)` },
+      { status: 413 },
+    );
+  }
 
   // Content-addressed: the same invoice twice is the same docId, which keeps
   // R2 from filling up with byte-identical copies.
@@ -76,7 +89,7 @@ export async function handleUpload(request: Request, env: UploadEnv): Promise<Re
     docId,
     sessionId,
     r2Key,
-    filename: file.name,
+    filename: safeFilename(file.name),
     demo: false,
   };
 

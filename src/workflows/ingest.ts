@@ -92,11 +92,21 @@ export class IngestWorkflow extends WorkflowEntrypoint<IngestEnv, IngestParams> 
       },
 
       toMarkdown: (filename, blob) =>
-        step.do("toMarkdown", () => documentToMarkdown(env.AI as never, filename, blob)),
+        step.do(
+          "toMarkdown",
+          { retries: { limit: 2, delay: "5 seconds", backoff: "exponential" } },
+          () => documentToMarkdown(env.AI as never, filename, blob),
+        ),
 
       extract: (markdown, docId) =>
-        step.do("extract", () =>
-          extractInvoice({ fetch: globalThis.fetch, apiToken: env.HACKATHON_AI_TOKEN }, { markdown, docId }),
+        step.do(
+          "extract",
+          { retries: { limit: 2, delay: "10 seconds", backoff: "exponential" } },
+          () =>
+            extractInvoice(
+              { fetch: globalThis.fetch, apiToken: env.HACKATHON_AI_TOKEN },
+              { markdown, docId },
+            ),
         ),
 
       // Michelle (workstream C) lands here at integration. Until then every
