@@ -61,7 +61,12 @@ function fakeAi(opts: { markdown?: string }): AiLike {
 }
 
 /** `replies` is consumed one per call, so a test can make the first answer bad. */
-function fakeGateway(replies: unknown[], calls: Call[] = [], envelope = "response"): ChatTransport {
+function fakeGateway(
+  replies: unknown[],
+  calls: Call[] = [],
+  envelope = "response",
+  finishReason = "stop",
+): ChatTransport {
   const queue = [...replies];
   return {
     apiToken: TOKEN,
@@ -73,7 +78,10 @@ function fakeGateway(replies: unknown[], calls: Call[] = [], envelope = "respons
       });
       const content = queue.shift();
       const text = typeof content === "string" ? content : JSON.stringify(content);
-      const result = envelope === "response" ? { response: text } : { output: text };
+      const result: Record<string, unknown> = {
+        choices: [{ finish_reason: finishReason, message: { content: text } }],
+      };
+      result[envelope] = text;
       return Response.json({ success: true, errors: [], result });
     },
   };
@@ -164,6 +172,24 @@ describe("extractInvoice", () => {
     await expect(extractInvoice(transport, args)).rejects.toThrow(/model not found/);
   });
 
+  it("asks for enough tokens to finish a whole invoice", async () => {
+    // The endpoint defaults to 256 completion tokens, which truncates the JSON
+    // partway through the second line item. The reply then fails to parse and
+    // looks like a model that cannot follow a schema.
+    const calls: Call[] = [];
+    await extractInvoice(fakeGateway([invoice], calls), args);
+    expect(calls[0].body.input.max_tokens).toBeGreaterThanOrEqual(4096);
+  });
+
+  it("says the answer was truncated rather than blaming the JSON", async () => {
+    // A repair retry cannot fix running out of room, so the message has to
+    // name the real cause or the next person debugs the wrong thing.
+    const truncated = JSON.stringify(invoice).slice(0, 120);
+    await expect(
+      extractInvoice(fakeGateway([truncated, truncated], [], "response", "length"), args),
+    ).rejects.toThrow(/truncat/i);
+  });
+
   it("routes through AI Gateway, authenticated", async () => {
     // Caching and the token dashboard are the point, not a nice-to-have.
     const calls: Call[] = [];
@@ -171,6 +197,15 @@ describe("extractInvoice", () => {
     expect(calls[0].url).toBe(AI_RUN_URL);
     expect(calls[0].headers["cf-aig-gateway-id"]).toBe(GATEWAY_ID);
     expect(calls[0].headers.Authorization).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it("uses the transport's model when one is named, so it can be swapped", async () => {
+    // Model ids drift and plan availability changes. Siva swaps this without
+    // touching extraction code.
+    const calls: Call[] = [];
+    const transport = { ...fakeGateway([invoice], calls), model: "@cf/some/other-model" };
+    await extractInvoice(transport, args);
+    expect(calls[0].body.model).toBe("@cf/some/other-model");
   });
 
   it("asks for JSON mode, and sends the model the document", async () => {
