@@ -1252,6 +1252,13 @@ document.getElementById("tab-standard").addEventListener("click", () => {
 });
 
 function syncTabs() {
+  /* A tab click is a navigation, so it leaves the confirm sheet the same way
+     "Back to the board" does. render() draws the sheet whenever `confirming`
+     is set, so without this the switch is swallowed: the tab highlights but
+     the view never changes. */
+  state.confirming = false;
+  state.published = null;
+  state.publishedOk = false;
   document.getElementById("tab-board").setAttribute("aria-pressed", String(state.tab === "board"));
   document.getElementById("tab-standard").setAttribute("aria-pressed", String(state.tab === "standard"));
   render();
