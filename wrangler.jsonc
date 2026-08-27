@@ -1,0 +1,25 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "cloudflare-dev-event-hackathon",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-25",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // The flag board (workstream E). No build step — `public/` ships as it is,
+  // so a deploy can never carry a stale bundle. Everything except `/api/*` is
+  // served as a static asset before this Worker runs.
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+
+  // So a deployed URL can say which version it is running.
+  "version_metadata": { "binding": "VERSION" },
+
+  "observability": { "enabled": true }
+
+  // Bindings still to come — see the shape in plan/stack.md:
+  //   ai, browser, d1_databases, kv_namespaces, r2_buckets, vectorize,
+  //   queues, durable_objects + migrations, workflows
+}
