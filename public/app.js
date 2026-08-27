@@ -35,6 +35,16 @@ const state = {
   tab: "board",
   /** lineId -> draft field values while an operator is editing. */
   editing: new Map(),
+  /** True once publish is pressed: show what will be written before writing it. */
+  confirming: false,
+  /** Set when publishing runs, so the page can say what actually happened. */
+  published: null,
+  /** The line the keyboard is pointed at. Triage is a queue, not a page. */
+  cursor: 0,
+  /** True once a key has been used, so the hint can stop taking up room. */
+  usedKeys: false,
+  /** Set when a key cannot apply here, so the stall explains itself. */
+  blocked: null,
 };
 
 /* ---------- helpers ---------- */
@@ -87,9 +97,14 @@ function render() {
   const s = state.session;
   if (!s) return;
 
-  root.innerHTML = state.tab === "board" ? board(s) : standard(s);
+  root.innerHTML = state.confirming
+    ? confirmSheet(s)
+    : state.tab === "board"
+      ? board(s)
+      : standard(s);
   bar.innerHTML = barHtml(s);
   wire();
+  drawGuides();
 }
 
 function board(s) {
@@ -105,7 +120,7 @@ function board(s) {
 
   return `
     <div class="inv">
-      <h1>${esc(inv.vendor)}</h1>
+      <h1><span class="dim">Reviewing an invoice from</span>${esc(inv.vendor)}</h1>
       <div class="inv__meta">
         <span>${esc(inv.invoiceNumber)}</span><span>·</span>
         <span>${esc(inv.issueDate)}</span><span>·</span>
@@ -131,11 +146,11 @@ function board(s) {
       }
     </div>
 
-    ${s.lines.map((r) => lineCard(s, r)).join("")}
+    ${s.lines.map((r, i) => lineCard(s, r, i === state.cursor)).join("")}
   `;
 }
 
-function lineCard(s, r) {
+function lineCard(s, r, isCursor) {
   const line = lineOf(s, r.lineId);
   const resolved = r.resolution !== "pending";
   const unmatched = r.matchMethod === "none";
@@ -143,7 +158,8 @@ function lineCard(s, r) {
   const editing = state.editing.has(r.lineId);
 
   return `
-    <section class="line" data-res="${r.resolution}">
+    <section class="line" data-res="${r.resolution}" data-line-id="${r.lineId}"
+             ${isCursor ? 'data-cursor="true"' : ""}>
       <header class="line__head">
         <span class="line__id">${esc(r.lineId)}</span>
         <span class="line__desc">${esc(line?.description ?? "")}</span>
@@ -165,7 +181,7 @@ function lineCard(s, r) {
         }
       </div>
 
-      ${editing ? editor(s, r) : resolutionRow(r, unmatched, exposure, s.invoice.currency)}
+      ${editing ? editor(s, r) : resolutionRow(r, unmatched, exposure, s.invoice.currency, isCursor)}
     </section>
   `;
 }
@@ -259,21 +275,26 @@ function flagCard(f, r) {
  * `accept_standard` is disabled when nothing matched, because there is no
  * standard to accept. Offering it would be a button that cannot mean anything.
  */
-function resolutionRow(r, unmatched, exposure, currency) {
+function resolutionRow(r, unmatched, exposure, currency, isCursor) {
   if (r.resolution !== "pending") {
-    return `<div class="res"><button class="act act--undo" data-undo="${r.lineId}">Undo</button></div>`;
+    return `<div class="res"><button class="act act--undo" data-undo="${r.lineId}">Undo <kbd>u</kbd></button></div>`;
   }
   return `
     <div class="res">
       <button class="act" data-resolve="accept_standard" data-line="${r.lineId}" ${unmatched ? "disabled" : ""}>
-        Correct the invoice
+        Correct the invoice <kbd>1</kbd>
       </button>
       <button class="act act--doc" data-resolve="accept_document" data-line="${r.lineId}" ${unmatched ? "disabled" : ""}>
-        Update the standard
+        Update the standard <kbd>2</kbd>
       </button>
       <button class="act" data-edit="${r.lineId}">
-        ${unmatched ? "Assign a SKU" : "Enter different values"}
+        ${unmatched ? "Assign a SKU" : "Enter different values"} <kbd>3</kbd>
       </button>
+      ${
+        isCursor && state.blocked
+          ? `<p class="hint hint--blocked" role="status">${esc(state.blocked)}</p>`
+          : ""
+      }
       ${
         unmatched
           ? `<p class="hint"><b>Nothing in the standard matches this line.</b> There is no standard value to accept and no invoice value to trust, so assign a SKU to teach it or leave the line for a buyer.</p>`
@@ -285,28 +306,63 @@ function resolutionRow(r, unmatched, exposure, currency) {
   `;
 }
 
-/** Field-level correction. The only route to a third value. */
+/**
+ * Field-level correction. The only route to a third value.
+ *
+ * Widths say what a field is. A four-character price in a full-width box reads
+ * as a mistake, and it costs a reviewer a beat to work out that the box is not
+ * expecting a sentence.
+ */
+const FIELD_WIDTH = {
+  sku: "sm",
+  uom: "xs",
+  taxCode: "sm",
+  quantity: "xs",
+  unitPrice: "sm",
+  lineTotal: "sm",
+  description: "full",
+};
+
 function editor(s, r) {
-  const draft = state.editing.get(r.lineId);
+  const draft = state.editing.get(r.lineId) ?? {};
   const line = lineOf(s, r.lineId);
-  const fields = r.matchMethod === "none"
+  const unmatched = r.matchMethod === "none";
+  const fields = unmatched
     ? ["sku", "description", "unitPrice", "uom"]
     : r.flags.filter((f) => f.status !== "match").map((f) => f.field);
 
   return `
     <div class="editor">
-      ${fields
-        .map(
-          (f) => `
-        <div class="editor__row">
-          <label for="ed-${r.lineId}-${f}">${esc(f)}</label>
-          <input id="ed-${r.lineId}-${f}" data-draft="${r.lineId}" data-field="${f}"
-                 value="${esc(draft[f] ?? line?.[f] ?? "")}" />
-        </div>`
-        )
-        .join("")}
+      <p class="editor__lead">
+        ${
+          unmatched
+            ? `Give this line a SKU from the standard. That is what teaches the match, so the next invoice with this wording finds it on its own.`
+            : `Enter the values that should stand. They replace both sides and update the standard.`
+        }
+      </p>
+
+      <div class="editor__fields">
+        ${fields
+          .map((f) => {
+            const required = unmatched && f === "sku";
+            return `
+          <div class="editor__row">
+            <label for="ed-${r.lineId}-${f}">
+              ${esc(f)}${required ? `<span class="editor__req" aria-hidden="true">needed</span>` : ""}
+            </label>
+            <input id="ed-${r.lineId}-${f}" data-draft="${r.lineId}" data-field="${f}"
+                   data-w="${FIELD_WIDTH[f] ?? "full"}"
+                   ${required ? 'placeholder="SKU-0000" required' : ""}
+                   value="${esc(draft[f] ?? line?.[f] ?? "")}" />
+          </div>`;
+          })
+          .join("")}
+      </div>
+
       <div class="editor__acts">
-        <button class="act act--doc" data-save="${r.lineId}">Save and update the standard</button>
+        <button class="act act--primary" data-save="${r.lineId}">
+          ${unmatched ? "Assign and teach the standard" : "Save and update the standard"}
+        </button>
         <button class="act" data-cancel="${r.lineId}">Cancel</button>
       </div>
     </div>
@@ -367,6 +423,58 @@ function auditRows(s, r) {
     );
 }
 
+/* ---------- publish ---------- */
+
+/**
+ * What publishing will do, before it does it.
+ *
+ * Two different things happen and they deserve separating: this invoice gets
+ * corrected, and the standard gets taught. A reviewer should see which of their
+ * decisions change the catalogue for everyone else before any of it is written.
+ */
+function confirmSheet(s) {
+  const corrected = s.lines.filter((l) => l.resolution === "accept_standard");
+  const taught = s.lines.filter(
+    (l) => l.resolution === "accept_document" || l.resolution === "edited"
+  );
+
+  const row = (r) => {
+    const line = lineOf(s, r.lineId);
+    const diffs = r.flags.filter((f) => f.status !== "match").map((f) => f.field);
+    return `<div class="cf__row">
+      <b>${esc(line?.description ?? r.lineId)}</b>
+      <span>${diffs.length ? esc(diffs.join(", ")) : "no field differences"}</span>
+    </div>`;
+  };
+
+  return `
+    <div class="panel">
+      <h2>Before this is written</h2>
+      <p>Nothing has changed yet. Publishing does two separate things.</p>
+
+      <div class="cf">
+        <section class="cf__half">
+          <h3>${corrected.length} ${corrected.length === 1 ? "line" : "lines"} corrected on this invoice</h3>
+          <p class="cf__note">The standard was right. Corrected values go into the published PDF and the catalogue is untouched.</p>
+          ${corrected.length ? corrected.map(row).join("") : `<p class="empty">None.</p>`}
+        </section>
+        <section class="cf__half cf__half--teach">
+          <h3>${taught.length} ${taught.length === 1 ? "change" : "changes"} to the standard</h3>
+          <p class="cf__note">These affect every future invoice, not just this one. The vendor's wording is kept as an alias so the next document matches without asking.</p>
+          ${taught.length ? taught.map(row).join("") : `<p class="empty">None.</p>`}
+        </section>
+      </div>
+
+      ${state.published ? `<p class="cf__result">${esc(state.published)}</p>` : ""}
+
+      <div class="cf__acts">
+        <button class="act act--primary" id="confirm-publish">Publish and write back</button>
+        <button class="act" id="confirm-back">Back to the board</button>
+      </div>
+    </div>
+  `;
+}
+
 /* ---------- bottom bar ---------- */
 
 function barHtml(s) {
@@ -411,6 +519,19 @@ function wire() {
       state.editing.set(i.dataset.draft, d);
     })
   );
+  const pub = document.getElementById("publish");
+  if (pub) pub.addEventListener("click", () => { state.confirming = true; render(); });
+
+  const back = document.getElementById("confirm-back");
+  if (back) back.addEventListener("click", () => {
+    state.confirming = false;
+    state.published = null;
+    render();
+  });
+
+  const go = document.getElementById("confirm-publish");
+  if (go) go.addEventListener("click", publish);
+
   document.querySelectorAll("[data-save]").forEach((b) =>
     b.addEventListener("click", () => {
       const id = b.dataset.save;
@@ -437,8 +558,204 @@ function resolve(lineId, resolution, finalValues) {
         : l
     ),
   };
+  /* Deciding a line is the signal to move on. Undo is the exception: staying
+     put is the whole point of pressing it. */
+  if (resolution !== "pending") advance(lineId);
+  render();
+  focusCursor();
+}
+
+/**
+ * Move to the next line that still needs a person.
+ *
+ * Wraps back to the top, because a reviewer who skipped one early should not
+ * have to scroll up to find it. Lands on the publish button when nothing is
+ * left, so the last decision flows straight into finishing.
+ */
+function advance(fromLineId) {
+  const lines = state.session.lines;
+  const from = lines.findIndex((l) => l.lineId === fromLineId);
+  const order = [
+    ...lines.slice(from + 1),
+    ...lines.slice(0, from + 1),
+  ];
+  const next = order.find((l) => l.resolution === "pending");
+  state.cursor = next ? lines.findIndex((l) => l.lineId === next.lineId) : from;
+  state.atEnd = !next;
+}
+
+/** Bring the pointed-at line into view without yanking the page around. */
+function focusCursor() {
+  if (state.confirming) return;
+  const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (state.atEnd) {
+    document.getElementById("publish")?.focus({ preventScroll: true });
+    document.getElementById("publish")?.scrollIntoView({
+      block: "center",
+      behavior: smooth ? "smooth" : "auto",
+    });
+    return;
+  }
+  const el = document.querySelector('[data-cursor="true"]');
+  el?.scrollIntoView({ block: "center", behavior: smooth ? "smooth" : "auto" });
+}
+
+/**
+ * Send the review.
+ *
+ * D's endpoint does not exist yet. Rather than a button that looks like it
+ * worked, this reports what it tried and what came back, so the gap is visible
+ * rather than silent.
+ */
+async function publish() {
+  const btn = document.getElementById("confirm-publish");
+  if (btn) { btn.disabled = true; btn.textContent = "Publishing…"; }
+
+  const body = {
+    sessionId: state.session.sessionId,
+    resolutions: state.session.lines.map((l) => ({
+      lineId: l.lineId,
+      resolution: l.resolution,
+      finalValues: l.finalValues,
+    })),
+  };
+
+  try {
+    const res = await fetch(`/api/sessions/${state.session.sessionId}/publish`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    state.published = res.ok
+      ? "Published. The corrected invoice is ready and the standard has been updated."
+      : `The publish endpoint answered ${res.status}. Workstream D owns POST /api/sessions/:id/publish; until it exists there is nothing for this to call.`;
+  } catch (err) {
+    state.published = `Could not reach the publish endpoint: ${err instanceof Error ? err.message : String(err)}. Workstream D owns it.`;
+  }
   render();
 }
+
+/**
+ * The drawing layer.
+ *
+ * Two vertical guides on the content's own margins and a horizontal one under
+ * the header, with a small square where they cross. Measured from the rendered
+ * shell rather than hardcoded, so it follows the layout at any width instead of
+ * drifting away from it.
+ */
+function drawGuides() {
+  const host = document.querySelector(".guides");
+  const shell = document.querySelector(".shell");
+  if (!host || !shell) return;
+
+  const r = shell.getBoundingClientRect();
+  const inset = 22;
+  const xs = [r.left - inset, r.right + inset];
+  const ys = [96, window.innerHeight - 84];
+
+  host.innerHTML =
+    xs.map((x) => `<span class="guides__v" style="inset-inline-start:${x}px"></span>`).join("") +
+    ys.map((y) => `<span class="guides__h" style="inset-block-start:${y}px"></span>`).join("") +
+    xs
+      .flatMap((x) => ys.map((y) => `<span class="guides__node" style="inset-inline-start:${x}px;inset-block-start:${y}px"></span>`))
+      .join("");
+}
+
+addEventListener("resize", drawGuides);
+
+/* ---------- keyboard ---------- */
+
+/**
+ * Triage from the keyboard.
+ *
+ * Forty lines is a lot of mouse travel, and the decision itself takes under a
+ * second. Deliberately single keys with no modifier: this screen has one job
+ * and nothing else is competing for them.
+ */
+const KEYS = {
+  "1": "accept_standard",
+  "2": "accept_document",
+};
+
+addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+  /* Never steal a key from someone typing a correction. */
+  const t = e.target;
+  const typing =
+    t instanceof HTMLElement &&
+    (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+  if (typing) {
+    if (e.key === "Escape") document.querySelector("[data-cancel]")?.click();
+    return;
+  }
+
+  if (state.confirming || !state.session) return;
+
+  const line = state.session.lines[state.cursor];
+  if (!line) return;
+
+  const key = e.key.toLowerCase();
+
+  if (KEYS[key]) {
+    const btn = document.querySelector(
+      `[data-resolve="${KEYS[key]}"][data-line="${line.lineId}"]`
+    );
+    e.preventDefault();
+    state.usedKeys = true;
+    if (btn && !btn.disabled) {
+      state.blocked = null;
+      btn.click();
+      return;
+    }
+    /* Silence here reads as a broken keyboard. Nothing matched this line, so
+       there is no standard to accept and no invoice value to trust: say that
+       and point at the key that does apply. */
+    state.blocked =
+      "Nothing in the standard matches this line, so there is no value to accept either way. Press 3 to assign a SKU.";
+    render();
+    focusCursor();
+    return;
+  }
+
+  state.blocked = null;
+
+  if (key === "3" || key === "e") {
+    const btn = document.querySelector(`[data-edit="${line.lineId}"]`);
+    if (btn) {
+      e.preventDefault();
+      state.usedKeys = true;
+      btn.click();
+      document.querySelector(".editor input")?.focus();
+    }
+    return;
+  }
+
+  if (key === "u") {
+    const btn = document.querySelector(`[data-undo="${line.lineId}"]`);
+    if (btn) { e.preventDefault(); state.usedKeys = true; btn.click(); }
+    return;
+  }
+
+  if (key === "j" || key === "arrowdown") {
+    e.preventDefault();
+    state.usedKeys = true;
+    state.cursor = Math.min(state.cursor + 1, state.session.lines.length - 1);
+    state.atEnd = false;
+    render();
+    focusCursor();
+    return;
+  }
+
+  if (key === "k" || key === "arrowup") {
+    e.preventDefault();
+    state.usedKeys = true;
+    state.cursor = Math.max(state.cursor - 1, 0);
+    state.atEnd = false;
+    render();
+    focusCursor();
+  }
+});
 
 /* ---------- boot ---------- */
 

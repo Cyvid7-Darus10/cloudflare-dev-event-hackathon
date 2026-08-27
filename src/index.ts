@@ -11,8 +11,13 @@
  */
 
 import { handleUpload } from "./ingest/upload";
+import { handleAudit, handleSessions, handleStandard } from "./api/sessions.ts";
 
+// Both Durable Object classes and the Workflow have to be exported from the
+// entrypoint for the runtime to find them. Implementations live in their
+// owners' directories: workstream B in src/workflows/, D in src/session/.
 export { IngestWorkflow } from "./workflows/ingest";
+export { ReviewSessionDO } from "./session/ReviewSession.ts";
 
 const SERVICE = "rectify";
 
@@ -34,6 +39,13 @@ export default {
 
     try {
       if (pathname === "/api/health") return health(env);
+      if (pathname === "/api/standard") return handleStandard(env);
+      if (pathname === "/api/audit") return handleAudit(env, new URL(request.url));
+
+      // Workstream D: the review session, its WebSocket, and publish.
+      const session = await handleSessions(request, env, pathname);
+      if (session) return session;
+
 
       // Workstream B. Upload lands here; extraction happens in the Workflow,
       // so this answers with a sessionId rather than waiting for the model.

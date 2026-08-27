@@ -60,7 +60,9 @@ Three things this screen ran into. Detail in the review.
 ## Not done
 
 - No WebSocket. Decisions live in the page.
-- Publish is inert; it needs D's endpoint.
+- Publish shows what will be written, then calls `POST /api/sessions/:id/publish`.
+  That route answers 501 until D builds it, and the page says so rather than
+  looking like it worked.
 - No upload screen. B owns ingest; this starts from a ready session.
 - The Standard tab derives its rows from this page's decisions rather than
   `GET /api/audit`.
