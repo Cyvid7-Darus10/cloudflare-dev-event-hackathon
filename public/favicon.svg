@@ -1,0 +1,13 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Compact three-bar cut of the mark: at 16px the full four-bar version
+       turns to grey mush, so the favicon trades a bar for weight. -->
+  <style>
+    .ink { stroke: #1d1d1d; }
+    @media (prefers-color-scheme: dark) { .ink { stroke: #fafafa; } }
+  </style>
+  <g stroke-linecap="round" fill="none" stroke-width="12">
+    <line class="ink" x1="24" y1="28" x2="72" y2="28"/>
+    <line x1="32" y1="50" x2="80" y2="50" stroke="#f6821f"/>
+    <line class="ink" x1="24" y1="72" x2="72" y2="72"/>
+  </g>
+</svg>

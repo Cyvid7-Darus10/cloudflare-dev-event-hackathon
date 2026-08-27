@@ -3,7 +3,37 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Rectify — invoice review</title>
+<title>Rectify — invoice reconciliation that learns</title>
+<meta name="description" content="Upload a supplier invoice and Rectify checks every line against your product standard — prices, units, names — flags each difference with the money at stake, and learns from every correction you accept. Built on Cloudflare Workers." />
+<link rel="canonical" href="https://rectify.cloudflare-hackathon.workers.dev/" />
+<meta name="theme-color" content="#ffffff" />
+
+<link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Rectify" />
+<meta property="og:title" content="Rectify — invoice reconciliation that learns" />
+<meta property="og:description" content="Every invoice line checked against a canonical standard, every difference flagged with the money at stake, and every accepted correction teaches the catalogue." />
+<meta property="og:url" content="https://rectify.cloudflare-hackathon.workers.dev/" />
+<meta property="og:image" content="https://rectify.cloudflare-hackathon.workers.dev/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Rectify",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "url": "https://rectify.cloudflare-hackathon.workers.dev/",
+  "description": "Invoice reconciliation against a product standard that learns. Upload an invoice, review flagged differences line by line, and publish a corrected PDF — accepted corrections update the standard so the next invoice matches on its own.",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -14,7 +44,16 @@
 
   <header class="top">
     <div class="top__in">
-      <div class="brand">Rectify<span>invoice review</span></div>
+      <div class="brand">
+        <svg class="brand__mark" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+          <g stroke-linecap="round" fill="none" stroke-width="12">
+            <line x1="24" y1="28" x2="72" y2="28" stroke="currentColor"/>
+            <line x1="32" y1="50" x2="80" y2="50" stroke="#f6821f"/>
+            <line x1="24" y1="72" x2="72" y2="72" stroke="currentColor"/>
+          </g>
+        </svg>
+        Rectify<span>invoice review</span>
+      </div>
       <!-- Toggle buttons, not ARIA tabs: role="tab" promises arrow-key
            navigation and a tabpanel this page never provided. -->
       <div class="tabs">
@@ -25,6 +64,14 @@
   </header>
 
   <main class="shell" id="root">
+    <noscript>
+      <h1>Rectify — invoice reconciliation that learns</h1>
+      <p>Upload a supplier invoice and every line is checked against your product
+      standard: prices, units of measure, and product names. Each difference is
+      flagged with the money at stake, you accept or correct it, and the standard
+      learns — the next invoice from the same vendor matches on its own. The
+      review board needs JavaScript enabled.</p>
+    </noscript>
     <p class="empty">Loading the session…</p>
   </main>
 

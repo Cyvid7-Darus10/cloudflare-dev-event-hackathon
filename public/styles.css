@@ -110,8 +110,9 @@ button { font: inherit; cursor: pointer; }
   max-width: 1140px; margin: 0 auto; padding: var(--s-3) clamp(16px,4vw,32px);
   display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center;
 }
-.brand { font-weight: 600; letter-spacing: -.02em; font-size: var(--t-lg); }
-.brand span { color: var(--ink-3); font-weight: 400; font-size: var(--t-xs); font-family: var(--mono); margin-left: var(--s-2); }
+.brand { font-weight: 600; letter-spacing: -.02em; font-size: var(--t-lg); display: flex; align-items: center; gap: var(--s-2); }
+.brand__mark { width: 20px; height: 20px; color: var(--ink); flex: none; }
+.brand span { color: var(--ink-3); font-weight: 400; font-size: var(--t-xs); font-family: var(--mono); margin-left: var(--s-1); }
 
 /* A segmented control on white, not a pill on grey. */
 .tabs { display: flex; margin-left: auto; border: 1px solid var(--edge); border-radius: var(--r-md); overflow: hidden; }

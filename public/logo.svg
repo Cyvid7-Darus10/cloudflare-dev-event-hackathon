@@ -1,0 +1,14 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Rectify">
+  <!-- The mark: invoice rules with one line out of register — the flagged
+       difference Rectify exists to put back. Ink follows the page theme. -->
+  <style>
+    .ink { stroke: #1d1d1d; }
+    @media (prefers-color-scheme: dark) { .ink { stroke: #fafafa; } }
+  </style>
+  <g stroke-linecap="round" fill="none" stroke-width="7">
+    <line class="ink" x1="30" y1="30" x2="70" y2="30"/>
+    <line class="ink" x1="30" y1="43.3" x2="70" y2="43.3"/>
+    <line x1="36" y1="56.7" x2="76" y2="56.7" stroke="#f6821f"/>
+    <line class="ink" x1="30" y1="70" x2="70" y2="70"/>
+  </g>
+</svg>
