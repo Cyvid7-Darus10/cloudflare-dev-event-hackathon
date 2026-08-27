@@ -39,6 +39,12 @@ faster than a cold read.
 the first five minutes if someone is closer to one of these. Owner 2 is the
 hardest, so put your strongest there.
 
+## The stack
+
+[`stack.md`](stack.md) lists what we use from Cloudflare and what we deliberately
+do not. Read the two "worth knowing" items before you start: they remove the
+hardest part of owner 1's job and owner 4's job.
+
 ## Work against fixtures, not against each other
 
 Every workstream ships a fixture on day one: a hand-written JSON file matching
