@@ -1,0 +1,49 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 667 >>
+stream
+BT
+/F1 11 Tf
+50 760 Td
+14 TL
+(APEX COMPONENTS PTE LTD) Tj
+T* (Invoice INV-1042    2026-08-20    SGD) Tj
+T* () Tj
+T* (SKU-1001  Hex Bolt M8 x 20                 100  ea     0.35     35.00) Tj
+T* (SKU-1104  HDMI Cable 2 m                    10  ea     9.50     95.00) Tj
+T* (         Widget Pro 2K                       4  ea    12.50     50.00) Tj
+T* (SKU-2208  Nitrile Examination Gloves         6  case  24.00    144.00) Tj
+T* (SKU-3301  PTFE Thread Seal Tape              5  ea     2.00     12.00) Tj
+T* (SKU-1105  USB-C Cable 1 m                   20  ea     6.50    130.00) Tj
+T* () Tj
+T* (Subtotal  466.00) Tj
+T* (GST 9%     41.94) Tj
+T* (Total     507.94) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000000959 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1029
+%%EOF

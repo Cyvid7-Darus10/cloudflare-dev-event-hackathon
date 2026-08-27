@@ -2,6 +2,8 @@
 
 Invoice reconciliation against a standard that learns.
 
+Live: [cloudflare-dev-event-hackathon.cloudflare-hackathon.workers.dev](https://cloudflare-dev-event-hackathon.cloudflare-hackathon.workers.dev/).
+
 My team's project for **Cloudflare Singapore Developers Day**, 27 August 2026.
 
 ## The idea

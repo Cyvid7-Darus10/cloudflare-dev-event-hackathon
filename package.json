@@ -5,12 +5,18 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "types": "wrangler types",
     "typecheck": "wrangler types && tsc --noEmit",
     "tail": "wrangler tail",
     "test": "vp test --run",
     "test:watch": "vp test",
     "lint": "vp lint",
-    "fmt": "vp fmt"
+    "fmt": "vp fmt",
+    "migrate:local": "wrangler d1 migrations apply rectify --local",
+    "migrate:remote": "wrangler d1 migrations apply rectify --remote",
+    "seed-sql": "node scripts/generate-seed.mjs",
+    "make-pdf": "node scripts/make-pdf.mjs",
+    "verify": "node scripts/verify.mjs https://cloudflare-dev-event-hackathon.cloudflare-hackathon.workers.dev"
   },
   "devDependencies": {
     "typescript": "^5.7.0",

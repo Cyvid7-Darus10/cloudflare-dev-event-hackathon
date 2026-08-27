@@ -2,6 +2,31 @@
 
 **Siva owns this.**
 
+## Live
+
+**URL:** https://cloudflare-dev-event-hackathon.cloudflare-hackathon.workers.dev/
+
+Account: **Cloudflare Hackathon** (`1b37bb1b7821a80f6e683adb438a9b63`).
+Wrangler profile `hackathon` is activated for this directory.
+
+| Resource | Name / id |
+|---|---|
+| Worker | `cloudflare-dev-event-hackathon` |
+| D1 | `rectify` (`ae06485f-db1b-419f-a248-e4c7a30f150f`) |
+| R2 | `rectify-docs` |
+| KV | `STANDARD_KV` (`396c980581e441b9bdd086bd6f7851ae`) |
+| Vectorize | `rectify-products` |
+| Queue | `rectify-ingest` |
+| Workflow | `ingest` |
+
+```bash
+npx wrangler deploy
+npm run verify
+```
+
+---
+
+
 **You own:** that it deploys, that it stays deployed, that everyone is building
 against the same shapes, and that the demo lands.
 

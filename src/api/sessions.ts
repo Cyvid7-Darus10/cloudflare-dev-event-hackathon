@@ -7,6 +7,7 @@
  * Michelle. This file holds no business rules of its own on purpose.
  */
 
+import { listStandard } from "../platform/catalogue.ts";
 import type { ReviewSession } from "../shared/contracts.ts";
 import type { ReviewSessionDO } from "../session/ReviewSession.ts";
 import { publishInvoice } from "./publish/index.ts";
@@ -152,15 +153,61 @@ export async function handleAudit(env: Env, url: URL): Promise<Response> {
 }
 
 export async function handleStandard(env: Env): Promise<Response> {
-  const db = (env as Record<string, unknown>).DB as D1Database | undefined;
+  const db = env.DB;
   if (!db) {
     return json({
       source: "unbound",
       note: "D1 is not bound yet, so there is no catalogue to read. "
         + "Seed it from fixtures/standard.json once the migration lands.",
       products: [],
+      count: 0,
     });
   }
-  const { results } = await db.prepare("SELECT * FROM standard_products ORDER BY sku").all();
-  return json({ source: "d1", products: results });
+  const products = await listStandard(db);
+  return json({ source: "d1", products, count: products.length });
+}
+
+/** `?demo=1` seeds the fixture session so the flag board can run without ingest. */
+export async function handleDocuments(request: Request, env: Env): Promise<Response> {
+  if (request.method === "OPTIONS") return json({ ok: true });
+  if (request.method !== "POST") return json({ error: "POST only." }, 405);
+
+  const demo = new URL(request.url).searchParams.get("demo") === "1";
+  if (!demo) {
+    return json(
+      {
+        error: "ingest not wired yet",
+        hint: "POST /api/documents?demo=1 seeds fixtures/session-a.json and skips the LLM",
+      },
+      501,
+    );
+  }
+
+  const now = Date.now();
+  const sessionId = crypto.randomUUID();
+  const seeded = fixture as ReviewSession;
+  const session: ReviewSession = {
+    ...seeded,
+    sessionId,
+    docId: `demo-${sessionId}`,
+    invoice: { ...seeded.invoice, docId: `demo-${sessionId}` },
+    status: "ready",
+    updatedAt: now,
+  };
+
+  if (env.DB) {
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO documents (doc_id, r2_key, filename, vendor, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      ).bind(session.docId, "fixtures/invoice-a.json", "invoice-a.json", session.invoice.vendor, "ready", now),
+      env.DB.prepare(
+        `INSERT INTO sessions (session_id, doc_id, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      ).bind(sessionId, session.docId, "ready", now, now),
+    ]);
+  }
+
+  await stubFor(env, sessionId).seed(session);
+  return json({ sessionId, docId: session.docId, demo: true, status: session.status });
 }

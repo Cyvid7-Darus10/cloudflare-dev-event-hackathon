@@ -13,9 +13,6 @@
 import { handleUpload } from "./ingest/upload";
 import { handleAudit, handleSessions, handleStandard } from "./api/sessions.ts";
 
-// Both Durable Object classes and the Workflow have to be exported from the
-// entrypoint for the runtime to find them. Implementations live in their
-// owners' directories: workstream B in src/workflows/, D in src/session/.
 export { IngestWorkflow } from "./workflows/ingest";
 export { ReviewSessionDO } from "./session/ReviewSession.ts";
 
@@ -26,11 +23,24 @@ const json = (body: unknown, status = 200): Response =>
 
 const health = (env: Env): Response =>
   json({
+    ok: true,
     status: "ok",
     service: SERVICE,
-    // Which version is actually live. Workers Builds deploys one per commit.
     version: env.VERSION?.id ?? "unknown",
     timestamp: new Date().toISOString(),
+    aiGateway: env.AI_GATEWAY_ID,
+    bindings: {
+      DB: Boolean(env.DB),
+      DOCS: Boolean(env.DOCS),
+      STANDARD_KV: Boolean(env.STANDARD_KV),
+      PRODUCTS: Boolean(env.PRODUCTS),
+      AI: Boolean(env.AI),
+      BROWSER: Boolean(env.BROWSER),
+      INGEST: Boolean(env.INGEST),
+      INGEST_QUEUE: Boolean(env.INGEST_QUEUE),
+      REVIEW_SESSION: Boolean(env.REVIEW_SESSION),
+      ASSETS: Boolean(env.ASSETS),
+    },
   });
 
 export default {
@@ -42,22 +52,23 @@ export default {
       if (pathname === "/api/standard") return handleStandard(env);
       if (pathname === "/api/audit") return handleAudit(env, new URL(request.url));
 
-      // Workstream D: the review session, its WebSocket, and publish.
-      const session = await handleSessions(request, env, pathname);
-      if (session) return session;
-
-
-      // Workstream B. Upload lands here; extraction happens in the Workflow,
-      // so this answers with a sessionId rather than waiting for the model.
       if (pathname === "/api/documents" && request.method === "POST") {
         return handleUpload(request, env as never);
       }
 
+      const session = await handleSessions(request, env, pathname);
+      if (session) return session;
+
       return json({ error: `No route for ${request.method} ${pathname}` }, 404);
     } catch (cause) {
-      // Log the detail for `wrangler tail`; return nothing sensitive.
       console.error(`${SERVICE}: unhandled error on ${pathname}`, cause);
       return json({ error: "Internal error" }, 500);
+    }
+  },
+
+  async queue(batch): Promise<void> {
+    for (const message of batch.messages) {
+      message.ack();
     }
   },
 } satisfies ExportedHandler<Env>;

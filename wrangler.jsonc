@@ -1,51 +1,57 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "rectify",
+  "name": "cloudflare-dev-event-hackathon",
+  "account_id": "1b37bb1b7821a80f6e683adb438a9b63",
   "main": "src/index.ts",
-  "compatibility_date": "2026-08-25",
+  // Browser Run quickAction needs >= 2026-03-24.
+  "compatibility_date": "2026-08-27",
   "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": true,
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "vars": {
+    "AI_GATEWAY_ID": "default"
+  },
 
-  // The flag board (workstream E). No build step — `public/` ships as it is,
-  // so a deploy can never carry a stale bundle. Everything except `/api/*` is
-  // served as a static asset before this Worker runs.
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
     "run_worker_first": ["/api/*"]
   },
 
-  // Workstream B (ingest). toMarkdown() parses the PDF; the extraction call
-  // goes over REST to /ai/run with cf-aig-gateway-id so it lands in the
-  // hackathon AI Gateway.
-  "ai": { "binding": "AI" },
+  "version_metadata": { "binding": "VERSION" },
 
+  "ai": { "binding": "AI", "remote": true },
+  "browser": { "binding": "BROWSER", "remote": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "rectify",
+      "database_id": "ae06485f-db1b-419f-a248-e4c7a30f150f",
+      "migrations_dir": "./migrations"
+    }
+  ],
   "r2_buckets": [
     { "binding": "DOCS", "bucket_name": "rectify-docs" }
   ],
-
-  "d1_databases": [
-    { "binding": "DB", "database_name": "rectify", "database_id": "local-dev" }
+  "kv_namespaces": [
+    { "binding": "STANDARD_KV", "id": "396c980581e441b9bdd086bd6f7851ae" }
   ],
-
+  "vectorize": [
+    { "binding": "PRODUCTS", "index_name": "rectify-products", "remote": true }
+  ],
+  "queues": {
+    "producers": [{ "binding": "INGEST_QUEUE", "queue": "rectify-ingest" }],
+    "consumers": [{ "queue": "rectify-ingest", "max_batch_size": 5, "max_batch_timeout": 5 }]
+  },
   "workflows": [
     { "binding": "INGEST", "name": "ingest", "class_name": "IngestWorkflow" }
   ],
 
-  // So a deployed URL can say which version it is running.
-  "version_metadata": { "binding": "VERSION" },
-
-  // Workstream D: one object per review session, holding flag state and the
-  // WebSocket the flag board watches. SQLite-backed so it can hold an audit
-  // trail alongside the session.
   "durable_objects": {
     "bindings": [{ "name": "REVIEW_SESSION", "class_name": "ReviewSessionDO" }]
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["ReviewSessionDO"] }
-  ],
-
-  "observability": { "enabled": true }
-
-  // Still to come — see the shape in plan/stack.md:
-  //   browser, kv_namespaces, vectorize, queues, durable_objects + migrations
+  ]
 }
