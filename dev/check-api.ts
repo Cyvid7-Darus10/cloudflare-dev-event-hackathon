@@ -18,6 +18,7 @@
  */
 
 import { handleSessions } from "../src/api/sessions.ts";
+import { decidedValues, InvalidDecision, sameValues } from "../src/session/decide.ts";
 import { recordResolution, type AuditRow } from "../src/session/writeback.ts";
 import type { LineReview, ReviewSession } from "../src/shared/contracts.ts";
 import fixture from "../fixtures/session-a.json" with { type: "json" };
@@ -42,11 +43,23 @@ class StubSession {
     if (i === -1) return { ok: false as const, error: `No line ${lineId}.` };
 
     const before = this.session.lines[i];
-    const same = before.resolution === resolution
-      && JSON.stringify(before.finalValues ?? null) === JSON.stringify(finalValues ?? null);
-    if (same) return { ok: true as const, line: before };
+    const item = this.session.invoice.lineItems.find((l) => l.lineId === lineId)!;
 
-    const line: LineReview = { ...before, resolution, ...(finalValues ? { finalValues } : {}) };
+    // Same derivation the Durable Object uses. A stand-in that decides values
+    // its own way proves nothing about the code that ships.
+    let values: Record<string, unknown> | undefined;
+    try {
+      values = decidedValues(before, item, resolution, finalValues);
+    } catch (cause) {
+      if (cause instanceof InvalidDecision) return { ok: false as const, error: cause.message };
+      throw cause;
+    }
+
+    if (before.resolution === resolution && sameValues(before.finalValues, values)) {
+      return { ok: true as const, line: before };
+    }
+
+    const line: LineReview = { ...before, resolution, finalValues: values };
     const at = Date.now();
     this.session = { ...this.session, lines: this.session.lines.with(i, line), updatedAt: at };
 
@@ -115,6 +128,38 @@ check("only catalogue-teaching decisions write audit rows", (await stub.getAudit
 
 const bad = await post(`/api/sessions/${id}/resolve`, { lineId: "L99", resolution: "accept_standard" });
 check("resolving a line that does not exist is a 400", bad?.status, 400);
+
+// D-002. The flag board sends accept_standard with no finalValues, because from
+// its side "the standard is right" is the whole decision. Before the fix this
+// applied an empty object and the corrected invoice came out identical to the
+// original, which is the demo silently showing nothing.
+const bare = await post(`/api/sessions/${id}/resolve`, { lineId: "L2", resolution: "accept_standard" });
+check("accept_standard with no values still corrects the line", bare?.status, 200);
+const bareLine = (await bare!.json<{ line: LineReview }>()).line;
+check("the standard's value was materialised server side", bareLine.finalValues?.uom, "CTN");
+
+// D-003. Numbers arrive from an HTML input as strings.
+const typed = await post(`/api/sessions/${id}/resolve`, {
+  lineId: "L5", resolution: "edited", finalValues: { unitPrice: "10.50" },
+});
+const typedLine = (await typed!.json<{ line: LineReview }>()).line;
+check("a typed price is coerced to a number", typedLine.finalValues?.unitPrice, 10.5);
+check("and the line total follows it", typedLine.finalValues?.lineTotal, 63); // 6 x 10.50
+
+const junk = await post(`/api/sessions/${id}/resolve`, {
+  lineId: "L5", resolution: "edited", finalValues: { unitPrice: "abc" },
+});
+check("a price that is not a number is rejected", junk?.status, 400);
+
+// D-007. Changing your mind must not leave the old correction applied.
+await post(`/api/sessions/${id}/resolve`, { lineId: "L5", resolution: "accept_document" });
+const cleared = await (await call(`/api/sessions/${id}`))!.json<ReviewSession>();
+check("accept_document clears values a previous decision wrote",
+  cleared.lines.find((l) => l.lineId === "L5")?.finalValues, undefined);
+
+// D-009. A malformed batch must not half-apply.
+const malformed = await post(`/api/sessions/${id}/publish`, { resolutions: "not an array" });
+check("a non-array batch is a 400, not a 500", malformed?.status, 400);
 
 // The flag board's own shape: every decision in one POST at publish time.
 const batch = await post(`/api/sessions/${id}/publish?format=json`, {

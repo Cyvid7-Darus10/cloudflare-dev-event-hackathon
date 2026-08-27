@@ -79,7 +79,14 @@ export async function handleSessions(
     // does not have to change to match D.
     if (request.method === "POST") {
       const batch = await request.json<{ resolutions?: BatchResolution[] }>().catch(() => ({}));
-      for (const r of batch.resolutions ?? []) {
+      const resolutions = batch.resolutions;
+      if (resolutions !== undefined && !Array.isArray(resolutions)) {
+        return json({ error: "`resolutions` must be an array." }, 400);
+      }
+      for (const r of resolutions ?? []) {
+        if (!r || typeof r.lineId !== "string") {
+          return json({ error: "Every resolution needs a lineId." }, 400);
+        }
         if (r.resolution === "pending") continue;
         const applied = await stub.resolve(r.lineId, r.resolution, r.finalValues);
         if (!applied.ok) return json({ error: applied.error }, 400);

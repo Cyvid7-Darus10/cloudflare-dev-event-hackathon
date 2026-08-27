@@ -15,6 +15,7 @@
 
 import { DurableObject } from "cloudflare:workers";
 import type { LineReview, ReviewSession as Session } from "../shared/contracts.ts";
+import { decidedValues, InvalidDecision, sameValues } from "./decide.ts";
 import { isResolveMessage, type ServerMessage } from "./protocol.ts";
 import { recordResolution, type AuditRow } from "./writeback.ts";
 
@@ -81,20 +82,29 @@ export class ReviewSessionDO extends DurableObject<Env> {
     if (index === -1) return { ok: false, error: `No line ${lineId} on this session.` };
 
     const before = session.lines[index];
-    if (isSameDecision(before, resolution, finalValues)) {
+    const item = session.invoice.lineItems.find((l) => l.lineId === lineId);
+    if (!item) return { ok: false, error: `Session has no invoice line ${lineId}.` };
+
+    let values: Record<string, unknown> | undefined;
+    try {
+      values = decidedValues(before, item, resolution, finalValues);
+    } catch (cause) {
+      if (cause instanceof InvalidDecision) return { ok: false, error: cause.message };
+      throw cause;
+    }
+
+    if (before.resolution === resolution && sameValues(before.finalValues, values)) {
       return { ok: true, line: before };
     }
 
-    const line: LineReview = {
-      ...before,
-      resolution,
-      ...(finalValues ? { finalValues } : {}),
-    };
+    // Assigned rather than spread, so changing to accept_document clears the
+    // values an earlier decision wrote instead of leaving them applied.
+    const line: LineReview = { ...before, resolution, finalValues: values };
 
     const updatedAt = Date.now();
     const next: Session = {
       ...session,
-      lines: session.lines.with(index, line),
+      lines: session.lines.map((l, i) => (i === index ? line : l)),
       updatedAt,
     };
 
@@ -176,19 +186,4 @@ export class ReviewSessionDO extends DurableObject<Env> {
       }
     }
   }
-}
-
-/**
- * Whether this decision is the one already recorded.
- *
- * Compared on the resolution and the values it would write, so re-sending the
- * identical decision is free but changing an edited value is not.
- */
-function isSameDecision(
-  line: LineReview,
-  resolution: LineReview["resolution"],
-  finalValues?: Record<string, unknown>,
-): boolean {
-  if (line.resolution !== resolution) return false;
-  return JSON.stringify(line.finalValues ?? null) === JSON.stringify(finalValues ?? null);
 }

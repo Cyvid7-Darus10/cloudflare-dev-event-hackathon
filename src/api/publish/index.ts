@@ -27,9 +27,14 @@ export type PublishResult = {
  * The substance of the document, and nothing else.
  *
  * Deliberately excludes `generatedAt` and the session id. The hash answers one
- * question: did the invoice we are sending change. A re-render a minute later
- * must produce the same digest, or the number is decoration. Resolving a flag
- * must change it, or the number is a lie.
+ * question, and only that one: did the invoice we are sending change. A
+ * re-render a minute later must produce the same digest, or the number is
+ * decoration.
+ *
+ * It is not a hash of the review. An `accept_document` decision leaves the
+ * invoice untouched on purpose, so the digest stays put, and that is correct
+ * rather than a gap: the supplier is receiving the same document. Claiming it
+ * moves on every decision would be claiming more than it checks.
  */
 function hashPayload(doc: CorrectedInvoice) {
   return {

@@ -14,6 +14,11 @@ import type {
 } from "../../shared/contracts.ts";
 
 export const toCents = (n: number): number => Math.round(n * 100);
+
+/** `numerator / denominator`, rounded half up, without ever leaving integers. */
+function halfUp(numerator: number, denominator: number): number {
+  return Math.floor((2 * numerator + denominator) / (2 * denominator));
+}
 export const fromCents = (c: number): number => c / 100;
 
 /** Fixed two decimals with thousands separators. Never locale-dependent. */
@@ -148,17 +153,32 @@ export function correctInvoice(session: ReviewSession): CorrectedInvoice {
     });
   });
 
-  const originalSubtotal = lines.reduce((a, l) => a + toCents(l.original.lineTotal), 0);
-  const correctedSubtotal = lines.reduce((a, l) => a + toCents(l.corrected.lineTotal), 0);
+  // "As invoiced" is what the supplier actually stated, not our re-addition of
+  // their lines. If an invoice carries a header adjustment or a rounding
+  // difference, restating its total as our own sum would put a number on the
+  // page that the supplier never wrote.
+  const originalSubtotal = toCents(invoice.totals.subtotal);
+  const originalTax = toCents(invoice.totals.tax);
+  const originalTotal = toCents(invoice.totals.total);
 
-  // The rate the document itself billed at, so a change in tax follows from a
-  // change in subtotal rather than from a number we invented.
-  const statedSubtotal = toCents(invoice.totals.subtotal);
-  const statedTax = toCents(invoice.totals.tax);
-  const taxRate = statedSubtotal > 0 ? statedTax / statedSubtotal : 0;
+  // Corrections are applied as a delta against the stated figures, so anything
+  // the stated total includes but the lines do not is carried through.
+  const lineDelta = lines.reduce(
+    (a, l) => a + toCents(l.corrected.lineTotal) - toCents(l.original.lineTotal), 0,
+  );
+  const correctedSubtotal = originalSubtotal + lineDelta;
 
-  const originalTax = Math.round(originalSubtotal * taxRate);
-  const correctedTax = Math.round(correctedSubtotal * taxRate);
+  // Tax at the rate the document itself billed at, computed on integers.
+  // Scaling cents through a floating rate rounds to the wrong cent: a 29/100
+  // rate on 50 cents evaluates to 14.499999999999998, which rounds down to 14
+  // where half-up gives 15.
+  const correctedTax = originalSubtotal > 0
+    ? halfUp(correctedSubtotal * originalTax, originalSubtotal)
+    : 0;
+  const taxRate = originalSubtotal > 0 ? originalTax / originalSubtotal : 0;
+
+  // Whatever the stated total holds beyond subtotal and tax stays put.
+  const adjustment = originalTotal - originalSubtotal - originalTax;
 
   return {
     vendor: invoice.vendor,
@@ -171,8 +191,8 @@ export function correctInvoice(session: ReviewSession): CorrectedInvoice {
     correctedSubtotal,
     originalTax,
     correctedTax,
-    originalTotal: originalSubtotal + originalTax,
-    correctedTotal: correctedSubtotal + correctedTax,
+    originalTotal,
+    correctedTotal: correctedSubtotal + correctedTax + adjustment,
     taxRate,
     changedLineCount: lines.filter((l) => l.changes.length > 0).length,
     standardUpdatedCount: lines.filter((l) => l.standardUpdated).length,
