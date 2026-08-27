@@ -10,7 +10,7 @@
  * rather than by a green build.
  */
 
-const SERVICE = "product-reconciliation";
+const SERVICE = "rectify";
 
 const json = (body: unknown, status = 200): Response =>
   Response.json(body, { status, headers: { "cache-control": "no-store" } });
