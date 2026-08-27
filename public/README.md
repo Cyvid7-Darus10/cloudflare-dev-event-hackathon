@@ -19,8 +19,29 @@ A `ReviewSession` per `architecture.md`. Right now from
 produce: exact, alias, semantic, and no match, plus a stale price, a
 unit-of-measure difference, and an arithmetic error.
 
-To go live, replace `loadSession()` in `app.js` with D's WebSocket and send
-resolutions back. Nothing else changes.
+With `?session=<id>` the page reads the live session from `GET
+/api/sessions/:id` and follows it over D's WebSocket. Without one it shows the
+sample fixture with the upload strip on top.
+
+## The first part of the page: upload → extraction → board
+
+The strip at the top of the sample board is a drop zone (drag a file onto it,
+browse, or press *Use the demo invoice*). Files are checked client-side against
+the same limits as `src/platform/safety.ts` — 10 MB, PDF/image/DOCX/XLSX — so a
+wrong file costs a sentence, not a round trip.
+
+`POST /api/documents` answers 202 with a `sessionId` before extraction has run,
+and `GET /api/sessions/:id` answers 404 until the Workflow seeds the session.
+So the page navigates to `?session=<id>` and shows an extraction-status screen
+that polls every 2 seconds and opens the board the moment the session lands.
+The steps after "uploaded" are shown as one piece of work in progress, not as
+checkmarks — the Workflow reports nothing until it finishes, and the screen
+does not pretend otherwise. The uploaded filename survives the navigation via
+sessionStorage, best-effort.
+
+One CSP consequence to know when editing: `style-src` has no `unsafe-inline`,
+so a `style="…"` attribute in rendered markup is silently dropped. Widths and
+guide positions land through the CSSOM (`el.style.x = …`) instead.
 
 ## Decisions worth keeping
 
@@ -59,10 +80,12 @@ Three things this screen ran into. Detail in the review.
 
 ## Not done
 
-- No WebSocket. Decisions live in the page.
-- Publish shows what will be written, then calls `POST /api/sessions/:id/publish`.
-  That route answers 501 until D builds it, and the page says so rather than
-  looking like it worked.
-- No upload screen. B owns ingest; this starts from a ready session.
 - The Standard tab derives its rows from this page's decisions rather than
   `GET /api/audit`.
+- The extraction screen cannot tell a failed Workflow from a slow one — the
+  session API only answers 404 or the session. After a couple of minutes it
+  says so and offers a restart, but a status endpoint would say it sooner.
+- Live updates currently fail at the handshake: `withSecurity()` in
+  `src/platform/safety.ts` reconstructs the 101 upgrade response, which
+  `new Response()` rejects, so `/ws` answers 500. Owner: A. The board shows
+  "reconnecting" and retries every 3 s until it is fixed.
