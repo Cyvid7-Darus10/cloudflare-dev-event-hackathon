@@ -61,6 +61,8 @@ const state = {
   publishedOk: false,
   /** Figures read back after publishing, so the receipt can say what changed. */
   receipt: null,
+  /** `{ lineId, message }` when a save was refused, shown inside that editor. */
+  editError: null,
   /**
    * Set while a session exists only as a 202: `{ sessionId, since, filename,
    * trouble }`. The upload answered before extraction ran, so the page shows
@@ -400,6 +402,12 @@ function editor(s, r) {
           .join("")}
       </div>
 
+      ${
+        state.editError?.lineId === r.lineId
+          ? `<p class="hint hint--blocked" role="alert">${esc(state.editError.message)}</p>`
+          : ""
+      }
+
       <div class="editor__acts">
         <button class="act act--primary" data-save="${r.lineId}">
           ${unmatched ? "Assign and teach the standard" : "Save and update the standard"}
@@ -609,6 +617,7 @@ function wire() {
   document.querySelectorAll("[data-cancel]").forEach((b) =>
     b.addEventListener("click", () => {
       state.editing.delete(b.dataset.cancel);
+      if (state.editError?.lineId === b.dataset.cancel) state.editError = null;
       render();
     })
   );
@@ -674,9 +683,34 @@ function wire() {
   document.querySelectorAll("[data-save]").forEach((b) =>
     b.addEventListener("click", () => {
       const id = b.dataset.save;
-      const draft = state.editing.get(id) ?? {};
+
+      /* Send what the inputs show, not just what was typed. The fields are
+         prefilled with the document's values, and "keep what is shown" is a
+         decision the server must receive as values — sent as typed deltas
+         only, an untouched editor became an empty object the publish batch
+         refused with a 400 long after the reviewer had moved on. */
+      const values = {};
+      document.querySelectorAll(`[data-draft="${CSS.escape(id)}"]`).forEach((input) => {
+        const v = input.value.trim();
+        if (v !== "") values[input.dataset.field] = v;
+      });
+
+      /* The SKU is the one field that teaches the match. Refuse the save
+         here, in the editor, rather than letting publish refuse it later. */
+      const review = state.session.lines.find((l) => l.lineId === id);
+      if (review?.matchMethod === "none" && !values.sku) {
+        state.editError = {
+          lineId: id,
+          message: "A SKU is what teaches the standard. Give this line one before saving.",
+        };
+        render();
+        document.querySelector(`[data-line-id="${CSS.escape(id)}"] .editor input`)?.focus();
+        return;
+      }
+
       state.editing.delete(id);
-      resolve(id, "edited", draft);
+      state.editError = null;
+      resolve(id, "edited", values);
     })
   );
 }
@@ -782,7 +816,12 @@ async function publish() {
         .catch(() => null);
       state.published = null;
     } else {
-      state.published = `The publish endpoint answered ${res.status}.`;
+      /* The server names the decision it refused. A bare status code sends
+         the reviewer hunting through eight lines for the one that failed. */
+      const detail = await res.json().catch(() => null);
+      state.published = detail?.error
+        ? `The server refused a decision: ${detail.error} Fix that line and publish again.`
+        : `The publish endpoint answered ${res.status}.`;
     }
   } catch (err) {
     state.published = `Could not reach the publish endpoint: ${
