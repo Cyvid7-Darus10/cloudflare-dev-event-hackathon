@@ -1,44 +1,61 @@
-# 1. Ingest and extract
+# B. Ingest and extract
 
 **Bryan owns this.**
 
-**You own:** getting a customer's document in, and turning it into JSON that
-matches the contract.
+**You own:** getting a supplier invoice in, storing the original, and turning
+it into an `ExtractedInvoice` that matches the contract.
+
+This is no longer "array of product records from a catalogue PDF". It is one
+invoice, with header fields and line items.
 
 ## Deliver
 
-- An endpoint that accepts a file upload and stores it in R2.
-- Extraction with Workers AI: document in, array of product records out.
-- The output conforms to the contract, or the request fails loudly. Never pass a
-  half-parsed record downstream.
+- `POST /api/documents` — multipart upload, put the bytes in R2, insert a
+  `documents` row, start the ingest Workflow, return `{ sessionId }`.
+- Workflow steps, in order:
+  1. `env.AI.toMarkdown()` on the R2 object
+  2. LLM extraction into `ExtractedInvoice` (JSON mode, schema-constrained;
+     validate; one repair retry on failure)
+  3. Hand the invoice to Michelle's matcher
+  4. Seed Zuriel's ReviewSession DO
+- Queue consumer for bulk: one Workflow instance per document. First item on
+  the drop ladder — skip if behind.
+- The demo PDFs: `fixtures/invoice-a.pdf` and `invoice-b.pdf`. Same vendor,
+  same odd product naming on B, so the learning moment works.
+- `?demo=1` on the upload endpoint seeds from `fixtures/invoice-a.json` and
+  skips the LLM. Build this by T+70, not at T+118.
 
 ## The interface you must honour
 
-You produce an array of product records exactly as `contract.md` defines them.
-Owner 2 consumes it. Nothing else about your internals matters to anyone.
+You produce an `ExtractedInvoice` exactly as `contract.md` defines it.
+Michelle consumes it. Nothing else about your internals matters to anyone.
 
 ## What you can stub
 
-The whole of owners 2, 3 and 4. Write your extracted JSON to a file and open it.
-If it matches the contract, you are done regardless of what else exists.
+The whole of Michelle, Zuriel and Cyrus. Write extracted JSON next to the
+fixture and diff it. If it matches the contract, you are done regardless of
+what else exists.
 
-## First hour
+## First stretch (T+10–70)
 
-Skip the upload. Hardcode one document's text in a test, run it through Workers
-AI, and get a conforming array out. Extraction is the risk. The upload is not.
+Skip the upload. Hardcode one invoice's markdown (or the fixture) and get a
+conforming `ExtractedInvoice` out through Workers AI via AI Gateway.
+Extraction is the risk. The R2 put is not.
 
 ## Watch for
 
-- **The model will invent fields.** Validate the output against the contract with
-  zod and reject what does not fit. A confident wrong record is worse than a
-  failed parse.
-- **A missing value is not an empty string.** If the document does not say,
-  the field is absent and gets flagged. Do not let the model fill the gap.
-- **Same document twice must not mean two runs.** Hash the file and reuse the
-  previous extraction. Owner 2 needs this to keep flags stable.
+- **Malformed JSON is the most likely failure in the whole project.**
+  Constrain the schema, validate with zod, one repair retry, then fail the
+  step so Workflows can resume it. Never pass a half-parsed invoice downstream.
+- **The model will invent SKUs and totals.** If the PDF does not say, `sku` is
+  `null`. Do not let the model fill the gap. Recompute nothing here — Michelle
+  flags arithmetic errors.
+- **Route every AI call through AI Gateway.** Caching and a token dashboard
+  are the point, not a nice-to-have.
+- **`invoice-b.pdf` must be extractable the same way as A.** If B's layout is
+  a special case, the learning demo dies.
 
 ## Done when
 
-Two genuinely different customer documents produce conforming JSON, and a
-document with a missing field produces a record with that field absent rather
-than guessed.
+Two genuinely different invoice PDFs produce a conforming `ExtractedInvoice`,
+and `?demo=1` returns a `sessionId` without calling the LLM.

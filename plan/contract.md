@@ -1,136 +1,202 @@
 # The contract
 
-**Agreed 27 August 2026. From here, changes go through owner 5 — see the end.**
+**Frozen against `architecture.md`. From here, changes go through Siva and get
+announced.** A silent change to any shape here breaks four workstreams at once.
 
-Two shapes, plus the decision that flows back. Everything below is decided, not
-proposed. `ui/src/types.ts` mirrors this file in TypeScript; if the two ever
-disagree, this file wins and the types get fixed.
+The TypeScript lives at `src/shared/contracts.ts`. This file is the same
+agreement in prose. If the two disagree, `architecture.md` wins, then this
+file, then the `.ts`.
+
+This replaces the earlier catalogue-reconciliation contract (open field set,
+all-strings, `accepted` / `rejected`). We are reconciling **invoice line
+items** against a **price-list standard that learns**.
 
 ## Ground rules
 
-- **`sku` identifies a product across documents.** Exact string match after
-  trimming surrounding whitespace, case-sensitive. Everything hangs on this.
-- **Every field value is a string.** Quantities, weights, codes — all strings,
-  exactly as written in the source. Nobody coerces. `"4"` and `4` being two
-  different things is how diffs go quietly wrong.
-- **Absent means the key is not there.** A record that does not mention
-  `warrantyMonths` has no `warrantyMonths` key. An empty string `""` is a value
-  the customer actually sent, and gets compared like any other value. `null`
-  never appears inside a product record — it appears only in flags, where it
-  means "this side has nothing".
-- **Field names are camelCase** (`caseQuantity`, `hsCode`, `weightGrams`).
-  Owner 1 maps whatever the customer wrote onto these names.
+- **A line is identified by `lineId`** (`L0`, `L1`, …), stable for the life of
+  a session. A product in the standard is identified by `sku`.
+- **Numbers are numbers.** `quantity`, `unitPrice`, `lineTotal`, `listPrice`,
+  `confidence`, `matchScore`, `version` are numeric. Do not stringify them.
+- **`null` means unknown / unmatched**, never "the customer sent empty". An
+  extracted SKU we could not read is `null`; an unmatched line has
+  `matchedSku: null` and `matchMethod: "none"`.
+- **Field names are camelCase** in JSON/TS. SQL columns are snake_case.
 
-## A product record
+## Extracted invoice (Bryan produces, Michelle consumes)
 
-What one product looks like after parsing. This is what owner 1 produces and
-owner 2 consumes.
+```ts
+export type ExtractedLine = {
+  lineId: string;            // stable: `L0`, `L1`, ...
+  rawText: string;           // the line exactly as it appeared
+  sku: string | null;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  uom: string | null;
+};
 
-```jsonc
-{
-  "sku": "NW-1042",                              // required, the key
-  "name": "Cold-pressed rapeseed oil, 5L",       // required
-  // every other field is optional, string-valued, camelCase-named:
-  "description": "…",
-  "unit": "5L",
-  "caseQuantity": "6",
-  "hsCode": "1514.11"
-}
+export type ExtractedInvoice = {
+  docId: string;
+  vendor: string;
+  invoiceNumber: string;
+  issueDate: string;         // ISO
+  currency: string;
+  lineItems: ExtractedLine[];
+  totals: { subtotal: number; tax: number; total: number };
+};
 ```
 
-- **Required:** `sku` and `name`. A record missing either fails extraction
-  loudly. Nothing else is required.
-- **Open field set.** The fields above are the common ones, not a closed list.
-  A field the standard has never held is legal in a record — the diff turns it
-  into an `unknown-field` flag, a person decides.
+## Standard product (D1 row, Michelle reads/writes)
 
-## A flag
-
-One disagreement between a customer's document and the standard. Owner 2
-produces these, owner 3 displays them.
-
-```jsonc
-{
-  "id": "f-…",                       // stable across reprocessing, see below
-  "sku": "NW-1042",
-  "productName": "Cold-pressed rapeseed oil, 5L", // carried so the UI never looks it up
-  "field": "caseQuantity",
-  "kind": "mismatch",                // mismatch | unknown-field | missing
-  "customerValue": "4",              // null when the document did not mention it
-  "standardValue": "6",              // null when the standard has never held it
-  "state": "pending",                // pending | accepted | rejected | edited
-  "resolvedValue": "…"               // present only when state is "edited"
-}
+```ts
+export type StandardProduct = {
+  sku: string;
+  canonicalName: string;
+  uom: string;
+  listPrice: number;
+  currency: string;
+  taxCode: string;
+  aliases: string[];
+  version: number;
+};
 ```
 
-Three kinds, because a mismatch is not the only reason to ask a person:
+Closed field set. No open bag of extra keys.
 
-| `kind` | Meaning | `customerValue` | `standardValue` |
-|---|---|---|---|
-| `mismatch` | Both have a value and they disagree | set | set |
-| `unknown-field` | The customer sent a field the standard has never held | set | `null` |
-| `missing` | The standard holds a field the customer's document did not mention | `null` | set |
+## Flags and the review session (Michelle produces, Zuriel holds, Cyrus displays)
 
-- **Flags are field-level only.** There is no product-level flag. A product the
-  standard has never seen produces one `unknown-field` flag per field it
-  carries. A reviewer resolves fields, not products.
-- **`id` is deterministic:** derived from (document hash, `sku`, `field`).
-  Reprocessing the same document reproduces the same ids, so decisions survive
-  a re-run and no flag is ever duplicated. The exact derivation is owner 2's
-  internals; determinism is the contract.
-- **The document hash is SHA-256 of the uploaded bytes**, and doubles as the
-  document's idempotency key (owner 1 reuses a previous extraction on a repeat
-  upload).
+```ts
+export type FlagStatus = 'match' | 'mismatch' | 'unmatched';
+export type FlaggedField =
+  | 'sku' | 'description' | 'unitPrice' | 'uom' | 'quantity' | 'lineTotal' | 'taxCode';
 
-## A decision
+export type FieldFlag = {
+  field: FlaggedField;
+  documentValue: unknown;
+  standardValue: unknown;
+  status: FlagStatus;
+  confidence: number;        // 0..1
+  reason: string;            // human-readable, shown in the UI
+};
 
-What a reviewer decided, sent from owner 3 back to owner 2. The only thing in
-the system allowed to change the standard.
+export type LineReview = {
+  lineId: string;
+  matchedSku: string | null;
+  matchMethod: 'exact' | 'alias' | 'semantic' | 'none';
+  matchScore: number;
+  flags: FieldFlag[];
+  resolution: 'pending' | 'accept_standard' | 'accept_document' | 'edited';
+  finalValues?: Partial<ExtractedLine>;
+};
 
-```jsonc
-{
-  "flagId": "f-…",
-  "state": "accepted",               // accepted | rejected | edited — never pending
-  "value": "4"                       // the value that wins; null means no value wins
-}
+export type ReviewSession = {
+  sessionId: string;
+  docId: string;
+  invoice: ExtractedInvoice;
+  lines: LineReview[];
+  status: 'extracting' | 'ready' | 'reviewing' | 'published';
+  updatedAt: number;
+};
 ```
 
-What each state does to the standard — owner 2 applies these, looking up the
-flag's `kind` by `flagId`:
+### How the UI maps onto `resolution`
 
-| `state` | Effect on the standard |
-|---|---|
-| `accepted` | The customer is right. `mismatch`: standard takes `customerValue`. `unknown-field`: field is added with `customerValue`. `missing`: field is **removed** — the customer's absence wins too. (Reviewers will usually reject `missing` flags; accepting one is deliberate.) |
-| `rejected` | The standard stands, untouched, always. |
-| `edited` | The standard takes the typed `resolvedValue`, including for `unknown-field` (added) — the reviewer's value wins over both sides. |
+The flag board acts **per flag** (accept standard / accept document / edit).
+The type stores **one resolution per line**. Map it this way, do not invent a
+parallel shape:
 
-Every applied decision writes an audit row — field, winning value, when —
-**before** the decision is acknowledged.
+- Each flag action writes that field into `finalValues`.
+- Write-back to the catalogue is per field: `accept_document` or `edited` on
+  `unitPrice` / `uom` updates the product; on `description` it also inserts an
+  alias. `accept_standard` never touches the catalogue.
+- `LineReview.resolution` rolls up: `pending` until every mismatch/unmatched
+  flag on the line is resolved; `edited` if any flag was typed; otherwise
+  `accept_document` if any flag took the invoice; otherwise `accept_standard`.
 
-## The surrounding shapes
+## Matching (Michelle, first hit wins)
 
-Smaller, but crossing the same boundaries, so they live here too.
+1. Line `sku` equals `standard_products.sku` → `exact`, score `1.0`
+2. Normalised `description` hits `standard_aliases.alias` → `alias`, score `0.95`
+3. Embed description with `@cf/baai/bge-base-en-v1.5`, Vectorize top hit ≥ `0.82`
+   → `semantic`, score = similarity
+4. Otherwise → `none`; every field flagged `unmatched`
 
-```jsonc
-// A field where the document and the standard already agree. Shown quiet in the UI.
-{ "sku": "NW-1042", "field": "name", "value": "Cold-pressed rapeseed oil, 5L" }
+## Diff (Michelle, pure TS, no network)
+
+- `unitPrice` — mismatch if it differs from `listPrice` by more than 0.5%.
+  `reason` states the delta and the money at stake (`delta × quantity`).
+- `uom` — mismatch on any difference.
+- `description` — mismatch if it is not the canonical name and not a known
+  alias. Accepting this one is how the system learns names.
+- `lineTotal` — recompute `quantity * unitPrice` and flag arithmetic errors.
+- `taxCode` — mismatch against the standard's code.
+
+## Write-back (Michelle owns the functions, Zuriel calls them)
+
+| Resolution | Catalogue | Published invoice |
+|---|---|---|
+| `accept_standard` | unchanged | `finalValues` take the standard |
+| `accept_document` | `UPDATE standard_products` (bump `version`), insert vendor `description` as alias, Vectorize upsert, audit row, purge KV snapshot | `finalValues` take the document |
+| `edited` | same write-back as `accept_document`, with `actor` recorded | `finalValues` take the typed value |
+
+The model never writes here.
+
+## D1 schema (Siva owns the migration, everyone reads this)
+
+```sql
+CREATE TABLE standard_products (
+  sku TEXT PRIMARY KEY, canonical_name TEXT NOT NULL, uom TEXT NOT NULL,
+  list_price REAL NOT NULL, currency TEXT NOT NULL, tax_code TEXT NOT NULL,
+  version INTEGER NOT NULL DEFAULT 1, updated_at INTEGER NOT NULL
+);
+CREATE TABLE standard_aliases (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, sku TEXT NOT NULL, alias TEXT NOT NULL,
+  source_doc_id TEXT, created_at INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX idx_alias ON standard_aliases(alias);
+CREATE TABLE standard_versions (          -- the audit log
+  id INTEGER PRIMARY KEY AUTOINCREMENT, sku TEXT NOT NULL, field TEXT NOT NULL,
+  old_value TEXT, new_value TEXT, session_id TEXT, actor TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE documents (
+  doc_id TEXT PRIMARY KEY, r2_key TEXT NOT NULL, filename TEXT,
+  vendor TEXT, status TEXT NOT NULL, created_at INTEGER NOT NULL
+);
+CREATE TABLE sessions (
+  session_id TEXT PRIMARY KEY, doc_id TEXT NOT NULL, status TEXT NOT NULL,
+  created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+);
 ```
 
-```jsonc
-// Everything one uploaded document produced. What the review screen loads.
-{
-  "documentName": "northwind-catalogue-q3.pdf",
-  "customerName": "Northwind Trading Pte Ltd",
-  "receivedAt": "2026-08-27T09:14:00+08:00",   // ISO 8601 with offset
-  "flags": [ /* flags */ ],
-  "matches": [ /* matches */ ]
-}
-```
+Seed `standard_products` from `fixtures/standard.json`. Seed it imperfectly — a
+couple of stale prices and one missing alias — so the demo has real flags.
 
-The reference fixture for all of this is `ui/src/fixture.ts` — one realistic
-review, hand-written, deliberately boring. Build against it.
+## HTTP / WebSocket (Zuriel owns, everyone else calls)
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/documents` | Upload → R2 → Workflow. Returns `{ sessionId }`. `?demo=1` seeds from `fixtures/invoice-a.json` and skips the LLM. |
+| `GET` | `/api/sessions/:id` | Current `ReviewSession`. |
+| `WS` | `/api/sessions/:id/ws` | Live flag board. |
+| `POST` | `/api/sessions/:id/publish` | HTML → Browser Rendering → R2. Returns a download URL. |
+| `GET` | `/api/standard` | Catalogue snapshot. |
+| `GET` | `/api/audit` | `standard_versions` rows. |
+
+## Fixtures (Siva, T+0–10)
+
+| File | Shape | Unblocks |
+|---|---|---|
+| `fixtures/invoice-a.json` | `ExtractedInvoice` | Bryan's tests, Michelle, `?demo=1` |
+| `fixtures/session-a.json` | fully-flagged `ReviewSession` | Cyrus, Zuriel |
+| `fixtures/standard.json` | ~40 `StandardProduct` rows | Michelle, D1 seed |
+| `fixtures/invoice-a.pdf` / `invoice-b.pdf` | demo PDFs | Bryan, the demo |
+
+`ui/src/fixture.ts` and `ui/src/types.ts` still describe the old catalogue
+contract. Cyrus replaces them with these shapes; do not keep both.
 
 ## Changing this
 
-Changes go through owner 5 and get announced. A silent change to any shape here
-breaks four workstreams at once.
+Changes go through Siva and get announced. Architecture's rule: nobody changes
+`src/shared/contracts.ts` after the first push without saying so out loud.

@@ -1,92 +1,83 @@
 # What we use from Cloudflare
 
-Checked against the docs on 27 August 2026, not from memory. Two of these are
-recent enough to change how we build.
+Rectify needs eleven services, each load-bearing. That is a change from the
+earlier plan, which kept the standard inside a Durable Object and treated D1,
+Workflows, Queues, KV, Vectorize, and AI Gateway as optional.
 
-## Core. We will definitely use these.
+The Durable Object is now **one review session**, not the catalogue. The
+catalogue lives in **D1** (plus a KV snapshot on the hot matching path, plus
+Vectorize for names that hit no SKU and no alias).
 
-| Product | What it does for us | Owner |
+Checked against `architecture.md`. If a binding is missing at T+0, Siva
+triggers the fallback in [05-platform.md](05-platform.md) immediately.
+
+## Core. We will use these.
+
+| Product | Load-bearing role | Owner |
 |---|---|---|
-| **Workers** | The whole app. One deployment, one URL. | Siva |
-| **Workers AI** | Reads the customer's document, extracts product records, compares fields. | Bryan |
-| **Durable Objects** | Holds the standard. One instance, so two reviewers cannot overwrite each other. | Michelle |
-| **DO SQLite** | The audit trail. Which field, which value won, who accepted it, when. | Michelle |
-| **R2** | Documents in and documents out. | Bryan, Zuriel |
-| **Workers Assets** | Serves the review UI. | Cyrus |
+| **Workers** (+ static assets) | The API and the UI, one deploy. | Siva, Cyrus |
+| **Workers AI** | `env.AI.toMarkdown()` parses the PDF. Llama extracts `ExtractedInvoice`. `bge-base-en-v1.5` embeds product names. | Bryan, Michelle |
+| **AI Gateway** | Every AI call: caching, token logs, a live dashboard for the judges. | Siva, Bryan |
+| **Workflows** | Ingest as durable steps. A failed extraction retries from that step. | Bryan |
+| **Durable Objects** | One DO per review session. Flag state, serialised edits, WebSocket broadcast. | Zuriel |
+| **D1** | Catalogue, aliases, version history, documents, sessions. | Siva (schema), Michelle (read/write) |
+| **R2** | Original uploads and published PDFs. | Bryan, Zuriel |
+| **KV** | Edge-cached snapshot of the published standard. Read on the matching path. | Michelle |
+| **Vectorize** | Semantic match when name matches no SKU and no alias. | Michelle |
+| **Queues** | Bulk upload: one Workflow instance per document. First thing on the drop ladder. | Bryan |
+| **Browser Rendering** | Corrected invoice HTML → PDF. | Zuriel |
 
 ## Two things worth knowing before you start
 
 ### `env.AI.toMarkdown()` handles the parsing
 
-Workers AI has a Markdown Conversion service. Give it a PDF, HTML, or an image
-and it returns Markdown. Do not write a PDF parser.
+Workers AI Markdown Conversion. Give it a PDF, DOCX, XLSX, or an image and it
+returns Markdown. Do not write a PDF parser.
 
 ```js
-const md = await env.AI.toMarkdown({ name: "po.pdf", blob });
+const md = await env.AI.toMarkdown({ name: "invoice.pdf", blob });
 ```
 
-It takes `conversionOptions`, including a CSS selector for HTML and whether to
-drop PDF metadata. **Bryan: start here.** Document to Markdown, then Markdown to
-JSON, is two easy steps instead of one hard one.
+**Bryan: start here.** Document to Markdown, then Markdown to `ExtractedInvoice`
+in JSON mode, is two steps instead of one hard one. Route the LLM call through
+AI Gateway.
 
 ### JSON mode gives conforming output
 
-Workers AI supports structured outputs through the OpenAI SDK's
-`response_format`. Hand it the product-record schema and it returns that shape
-rather than prose you have to parse.
+Hand the model the `ExtractedInvoice` schema. Validate with zod. On failure,
+one repair retry, then stop. A confident wrong line is worse than a failed
+parse.
 
-```js
-response_format: { type: "json_schema", schema: ProductRecordSchema }
-```
+Keep `?demo=1` wired to `fixtures/invoice-a.json` so the stage demo can skip
+the LLM entirely.
 
-Still validate what comes back with zod. A schema constrains the model; it does
-not make the model honest about a field that was not in the document.
-
-### Browser Run generates the PDF
-
-Callable straight from a Worker binding. No API token, no external request.
+### Browser Rendering generates the PDF
 
 ```jsonc
 { "compatibility_date": "2026-03-24", "browser": { "binding": "BROWSER" } }
 ```
 
-```js
-const pdf = await env.BROWSER.quickAction("pdf", { html });
-```
+Build the corrected invoice as HTML, then render. If the account is not on
+Workers Paid, use the fallback: styled HTML plus a print stylesheet, Cmd-P in
+the demo. Same story, no PDF file.
 
-**Zuriel: this removes the reason to avoid PDF.** Build the document as HTML,
-then run it through this. Note the compatibility date requirement; `quickAction`
-needs `2026-03-24` or later.
+## Fallbacks, not optionals
 
-## Optional. Decide early, do not drift into them.
+These used to be "decide early, maybe skip". They are in the architecture. If
+we are behind at T+70, cut from the bottom of the drop ladder in
+`05-platform.md` — do not invent a different cut.
 
-| Product | Would give us | Verdict |
-|---|---|---|
-| **AI Gateway** | Caching, logs and cost visibility on every model call | Worth it if extraction gets called repeatedly on the same document. Ten minutes to add. |
-| **Vectorize** | Matching a customer's field names to ours when the wording differs | Genuinely the right tool for "Item Description" versus "Product Name". Also a day's work. Stretch only. |
-| **Workflows** | Durable multi-step processing for large documents | Only if a document takes long enough to need resuming. Probably not today. |
-| **Queues** | Processing uploads in the background | Same. Only if extraction is too slow to do inline. |
-| **Turnstile** | Bot protection on the upload | Not for a demo. |
-| **Cloudflare Access** | Real employee sign-in in front of the app | The right answer for production. For today, a shared secret is enough. |
+| Product | Fallback |
+|---|---|
+| **Queues** | Single-file upload only. |
+| **Browser Rendering** | HTML + print stylesheet. |
+| **Vectorize** | In-Worker cosine similarity over the ~40-row catalogue. Exact and alias tiers still carry the demo. |
+| **KV** | Read D1 directly. |
+| **Multi-user WebSocket** | DO still holds state; UI polls `GET /api/sessions/:id`. |
 
-## D1: probably not, and here is why
+Never cut: upload → extract → flag → edit → **write-back to standard**.
 
-D1 is a SQL database, and the instinct is to put the standard in it. Do not.
-
-The standard is **shared state that several people edit at once**. That is the
-one problem a Durable Object solves and a database does not: the DO gives us a
-single writer for free, so two reviewers accepting different values for the same
-field cannot race. Putting it in D1 means writing the locking ourselves.
-
-The DO already has SQLite inside it, which covers the audit trail.
-
-D1 earns its place when we want queries **across** many objects: every document
-we have ever processed, searchable, with history. That is a real feature and it
-is not in today's scope.
-
-**If someone reaches for D1, ask which query they cannot answer from the DO.**
-If there is a good answer, add it. If not, it is a second source of truth and a
-sync problem.
+Turnstile and Cloudflare Access stay out. Not for a two-hour demo.
 
 ## Bindings, roughly
 
@@ -98,19 +89,40 @@ Siva owns the real file. This is the shape.
   "compatibility_flags": ["nodejs_compat"],
   "ai": { "binding": "AI" },
   "browser": { "binding": "BROWSER" },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "rectify" }
+  ],
   "r2_buckets": [
-    { "binding": "DOCS", "bucket_name": "reconcile-docs" }
+    { "binding": "DOCS", "bucket_name": "rectify-docs" }
+  ],
+  "kv_namespaces": [
+    { "binding": "STANDARD_KV" }
+  ],
+  "vectorize": [
+    { "binding": "PRODUCTS", "index_name": "rectify-products" }
+  ],
+  "queues": {
+    "producers": [{ "binding": "INGEST_QUEUE", "queue": "rectify-ingest" }],
+    "consumers": [{ "queue": "rectify-ingest" }]
+  },
+  "workflows": [
+    { "binding": "INGEST", "name": "ingest", "class_name": "IngestWorkflow" }
   ],
   "durable_objects": {
-    "bindings": [{ "name": "Standard", "class_name": "Standard" }]
+    "bindings": [{ "name": "ReviewSession", "class_name": "ReviewSession" }]
   },
   "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["Standard"] }
+    { "tag": "v1", "new_sqlite_classes": ["ReviewSession"] }
   ],
-  "assets": { "directory": "./dist/client", "binding": "ASSETS" },
+  "assets": { "directory": "./ui/dist", "binding": "ASSETS" },
   "observability": { "enabled": true }
 }
 ```
 
-Every Durable Object class needs both a binding and a migration entry. Adding a
-class later means a **new** tag. Never edit a shipped one.
+Wire the AI Gateway id on the Worker as well — every `env.AI` call should show
+up there.
+
+Every Durable Object class needs both a binding and a migration entry. Adding
+a class later means a **new** tag. Never edit a shipped one.
+
+The DO class is `ReviewSession`, not `Standard`. The catalogue is D1.
