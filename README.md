@@ -6,6 +6,20 @@ Live: [rectify.cloudflare-hackathon.workers.dev](https://rectify.cloudflare-hack
 
 My team's project for **Cloudflare Singapore Developers Day**, 27 August 2026.
 
+## The trailer
+
+Thirty seconds, for pitching.
+
+https://github.com/Cyvid7-Darus10/cloudflare-dev-event-hackathon/raw/main/public/trailer.mp4
+
+It also streams from the deployed Worker, which is the link to use in a room with
+patchy wifi and a browser already open:
+[rectify.cloudflare-hackathon.workers.dev/trailer.mp4](https://rectify.cloudflare-hackathon.workers.dev/trailer.mp4).
+
+Every figure on screen is real, taken from [`fixtures/session-a.json`](fixtures/session-a.json):
+invoice NW-INV-24817 at S$4,325.34, corrected to S$4,255.58, overstated by S$69.76
+across four lines. Built with [Remotion](https://remotion.dev); 1920x1080, 30fps.
+
 ## The idea
 
 A supplier sends an invoice as a PDF. Somebody opens it next to a price list and
