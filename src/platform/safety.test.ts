@@ -93,6 +93,20 @@ describe("isIngestParams", () => {
       }),
     ).toBe(false);
   });
+
+  it("accepts a queue message with only demo:boolean, and optional fixture a|b", () => {
+    const docId = "abc";
+    const base = {
+      docId,
+      sessionId: "session-a",
+      r2Key: documentKey(docId),
+      filename: "invoice-a.pdf",
+      demo: true,
+    };
+    expect(isIngestParams(base)).toBe(true);
+    expect(isIngestParams({ ...base, fixture: "b", filename: "invoice-b.pdf" })).toBe(true);
+    expect(isIngestParams({ ...base, fixture: "c" })).toBe(false);
+  });
 });
 
 describe("withSecurity", () => {

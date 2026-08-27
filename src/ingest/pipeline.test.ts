@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { runIngest } from "./pipeline";
 import type { IngestDeps } from "./pipeline";
 import invoiceA from "../../fixtures/invoice-a.json";
+import invoiceB from "../../fixtures/invoice-b.json";
 import { parseExtractedInvoice } from "./schema";
 
 /**
@@ -51,6 +52,7 @@ function deps(overrides: Partial<IngestDeps> = {}) {
       calls.push(`mark:${status}`);
     },
     demoInvoice: invoiceA as any,
+    demoInvoiceB: invoiceB as any,
     ...overrides,
   };
   return { deps: base, calls, seeded };
@@ -59,6 +61,11 @@ function deps(overrides: Partial<IngestDeps> = {}) {
 describe("the demo fixture", () => {
   it("conforms to the contract, so ?demo=1 cannot ship a broken shape", () => {
     const result = parseExtractedInvoice(invoiceA);
+    expect(result.ok).toBe(true);
+  });
+
+  it("conforms for invoice B, so ?demo=2 cannot ship a broken shape", () => {
+    const result = parseExtractedInvoice(invoiceB);
     expect(result.ok).toBe(true);
   });
 });
@@ -138,6 +145,17 @@ describe("runIngest", () => {
       await runIngest(d, demoParams);
       expect(seeded[0].lines).toHaveLength(8);
       expect(seeded[0].status).toBe("ready");
+    });
+
+    it("seeds invoice B when fixture is b, still without the model", async () => {
+      const { deps: d, calls, seeded } = deps();
+      await runIngest(d, { ...demoParams, fixture: "b" });
+      expect(calls.some((c) => c.startsWith("toMarkdown:"))).toBe(false);
+      expect(calls.some((c) => c.startsWith("extract:"))).toBe(false);
+      expect(seeded[0].invoice.invoiceNumber).toBe("NW-INV-24902");
+      expect(seeded[0].invoice.vendor).toBe("Northwind Trading Pte Ltd");
+      expect(seeded[0].invoice.lineItems).toHaveLength(4);
+      expect(seeded[0].lines).toHaveLength(4);
     });
   });
 });

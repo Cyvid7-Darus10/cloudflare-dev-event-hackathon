@@ -4,18 +4,22 @@ import { inspectUpload, MAX_UPLOAD_BYTES, safeFilename } from "../platform/safet
 /**
  * `POST /api/documents` — the front door.
  *
- * Bytes to R2, a row in `documents`, a Workflow started, a sessionId back. The
- * response does not wait for extraction: the Workflow owns that, and the review
- * screen opens on a session that is still `extracting`.
+ * Bytes to R2, a row in `documents`, the ingesting agent started, a sessionId
+ * back. The response does not wait for extraction: the agent owns that, and
+ * the review screen opens on a session that is still `extracting`.
  */
+
+export type DemoFixture = "a" | "b";
 
 export interface IngestParams {
   docId: string;
   sessionId: string;
   r2Key: string;
   filename: string;
-  /** Skip the LLM and seed from `fixtures/invoice-a.json`. The stage escape hatch. */
+  /** Skip the LLM and seed from a fixture. The stage escape hatch. */
   demo: boolean;
+  /** Which fixture to seed when `demo` is true. Omitted messages default to `"a"`. */
+  fixture?: DemoFixture;
 }
 
 /** The slice of the environment this handler needs. */
@@ -24,7 +28,17 @@ export interface UploadEnv {
   DB: D1Database;
 }
 
-const DEMO_DOC_ID = "demo-invoice-a";
+const DEMO: Record<DemoFixture, { docId: string; filename: string }> = {
+  a: { docId: "demo-invoice-a", filename: "invoice-a.pdf" },
+  b: { docId: "demo-invoice-b", filename: "invoice-b.pdf" },
+};
+
+function demoFixtureFrom(request: Request): DemoFixture | null {
+  const value = new URL(request.url).searchParams.get("demo");
+  if (value === "1") return "a";
+  if (value === "2") return "b";
+  return null;
+}
 
 function badRequest(message: string): Response {
   return Response.json({ error: message }, { status: 400 });
@@ -46,19 +60,21 @@ export async function handleUpload(
   env: UploadEnv,
   deps: UploadDeps,
 ): Promise<Response> {
-  const demo = new URL(request.url).searchParams.get("demo") === "1";
+  const fixture = demoFixtureFrom(request);
   const sessionId = crypto.randomUUID();
 
   // The demo path takes no file. It exists so the stage does not depend on
   // conference wifi or on the model behaving, and it must work when the rest
   // of the pipeline does not.
-  if (demo) {
+  if (fixture) {
+    const demo = DEMO[fixture];
     const params: IngestParams = {
-      docId: DEMO_DOC_ID,
+      docId: demo.docId,
       sessionId,
-      r2Key: documentKey(DEMO_DOC_ID),
-      filename: "invoice-a.pdf",
+      r2Key: documentKey(demo.docId),
+      filename: demo.filename,
       demo: true,
+      fixture,
     };
     await recordDocument(env, params);
     await deps.startIngest(sessionId, params);
@@ -109,8 +125,7 @@ export async function handleUpload(
 
   await recordDocument(env, params);
 
-  // The session is the Workflow instance id, so a stuck run is traceable from
-  // the id the UI is already holding.
+  // Named by sessionId so a stuck run is traceable from the id the UI holds.
   await deps.startIngest(sessionId, params);
 
   return Response.json({ sessionId }, { status: 202 });

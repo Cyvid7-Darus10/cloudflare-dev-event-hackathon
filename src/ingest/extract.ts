@@ -55,7 +55,7 @@ export interface ChatTransport {
    * `globalThis.fetch.bind(globalThis)`.
    */
   fetch: typeof fetch;
-  apiToken: string;
+  apiToken: string | undefined;
   /** Overrides `EXTRACTION_MODEL`. Model ids drift; swapping one is config. */
   model?: string;
 }
@@ -154,6 +154,11 @@ export async function extractInvoice(
   args: ExtractArgs,
 ): Promise<ExtractedInvoice> {
   const { markdown, docId } = args;
+  if (!transport.apiToken) {
+    throw new Error(
+      "HACKATHON_AI_TOKEN is missing; refusing to call the AI Gateway without a token",
+    );
+  }
   let complaint: string | null = null;
 
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -221,12 +226,27 @@ export async function extractInvoice(
     }
 
     // Our docId wins: it is the hash of the bytes we stored, and the rest of
-    // the system keys on it.
-    const parsed = parseExtractedInvoice({ ...(json.value as object), docId });
+    // the system keys on it. lineId is positional and ours as well — L0, L1, …
+    // in document order — so a model that invents ids cannot desync D and E.
+    const parsed = parseExtractedInvoice(withOurs(json.value, docId));
     if (parsed.ok) return parsed.invoice;
 
     complaint = parsed.errors.join("\n");
   }
 
   throw new Error(`extraction failed after one repair retry: ${complaint}`);
+}
+
+/** Stamp the ids we own onto whatever the model returned. */
+function withOurs(value: unknown, docId: string): unknown {
+  if (!value || typeof value !== "object") return { docId };
+  const record = value as { lineItems?: unknown };
+  if (!Array.isArray(record.lineItems)) return { ...record, docId };
+  return {
+    ...record,
+    docId,
+    lineItems: record.lineItems.map((line, i) =>
+      line && typeof line === "object" ? { ...line, lineId: `L${i}` } : line,
+    ),
+  };
 }

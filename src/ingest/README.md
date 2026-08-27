@@ -4,7 +4,7 @@
 
 ```bash
 npm install
-npm test          # 74 tests, inside workerd
+npm test
 npm run typecheck
 npx wrangler dev  # needs CLOUDFLARE_API_TOKEN: the AI binding is remote even locally
 ```
@@ -21,7 +21,7 @@ POST /api/documents ──> R2 + documents row ──> IngestAgent (one per docu
                                                   │  status: extracting
                                                   │  1. toMarkdown        (retried)
                                                   │  2. extract           (retried, JSON mode)
-                                                  │  3. match             ← Michelle's seam
+                                                  │  3. match             ← matchInvoiceLive
                                                   │  4. seed ReviewSession   Zuriel's DO
                                                   ▼  status: ready | failed
                                           GET /agents/ingest-agent/:sessionId
@@ -55,39 +55,21 @@ but a mid-run eviction starts over rather than resuming.
 check on its answer cannot drift apart.
 
 **Our `docId` overwrites the model's.** It is the hash of the bytes we stored,
-and everything downstream keys on it. The model's is never trusted.
+and everything downstream keys on it. `lineId` is rewritten to `L0`, `L1`, …
+in document order the same way.
 
 **Failure is loud.** Extraction gets exactly one repair retry — the second
-failure throws, so the Workflow step fails and resumes from there rather than
-from the upload. A confident wrong line is worse than a failed parse.
+failure throws. A missing `HACKATHON_AI_TOKEN` throws before the Gateway call.
 
-## The escape hatch
+## Escape hatches
 
-`POST /api/documents?demo=1` seeds from Siva's `fixtures/invoice-a.json` and
-never touches the model. Verified locally against an earlier fixture: it runs
-the full Workflow and leaves the document `ready` with the vendor recorded.
-Re-run it against the canonical fixture once the D1 migration exists.
+`POST /api/documents?demo=1` seeds `fixtures/invoice-a.json` and never touches
+the model. `?demo=2` does the same with `fixtures/invoice-b.json`. Both set
+`demo: true` so the agent skips LLM calls. Matching still runs, so the board
+gets real flags.
 
 ## Where the model runs
 
 Extraction goes over REST to the account's `/ai/run` endpoint with
-`cf-aig-gateway-id: hackathon`, so every call lands in the AI Gateway. The
-token is the `HACKATHON_AI_TOKEN` Worker var. `toMarkdown` uses the `AI`
-binding.
-
-Model: `@cf/zai-org/glm-5.3-flash`. **Confirm it through the gateway before the
-demo** — model ids drift, and a dead one fails with nothing useful in the body.
-
-## Not done yet
-
-- **Not verified over the wire.** No `wrangler login` on this machine, so the
-  real model has never been called. Everything below the model is proven; the
-  model call itself is not. Do this first.
-- `match()` and `seedSession()` in `../workflows/ingest.ts` are seams. Every
-  line comes back unmatched until Michelle and Zuriel land — a truthful empty
-  state, not a fake one.
-- No Queue consumer for bulk. First item on the drop ladder.
-- `fixtures/invoice-a.pdf` / `invoice-b.pdf` do not exist. Only the JSON does,
-  so the PDF path has never run on a real document.
-- No D1 migration yet (Siva's). `documents` has to exist before a non-demo
-  upload can record a row.
+`cf-aig-gateway-id: hackathon`. The token is the `HACKATHON_AI_TOKEN` Worker
+secret. `toMarkdown` uses the `AI` binding.

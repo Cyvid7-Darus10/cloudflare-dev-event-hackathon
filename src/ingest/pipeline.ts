@@ -18,8 +18,18 @@ export interface IngestDeps {
   /** Zuriel's ReviewSession DO. */
   seedSession(session: ReviewSession): Promise<void>;
   markDocument(docId: string, vendor: string | null, status: string): Promise<void>;
-  /** `fixtures/invoice-a.json`, used only when `demo` is set. */
+  /** `fixtures/invoice-a.json`, used when `demo` is set and fixture is `"a"` or omitted. */
   demoInvoice: ExtractedInvoice;
+  /** `fixtures/invoice-b.json`, used when `demo` is set and fixture is `"b"`. */
+  demoInvoiceB?: ExtractedInvoice;
+}
+
+function demoInvoiceFor(deps: IngestDeps, params: IngestParams): ExtractedInvoice {
+  if (params.fixture === "b") {
+    if (!deps.demoInvoiceB) throw new Error("demo fixture b is not loaded");
+    return deps.demoInvoiceB;
+  }
+  return deps.demoInvoice;
 }
 
 export async function runIngest(deps: IngestDeps, params: IngestParams): Promise<ReviewSession> {
@@ -30,7 +40,7 @@ export async function runIngest(deps: IngestDeps, params: IngestParams): Promise
     // not depend on the model behaving, and it has to be a real path through
     // the same code, not a separate one that rots.
     const invoice: ExtractedInvoice = demo
-      ? { ...deps.demoInvoice, docId }
+      ? { ...demoInvoiceFor(deps, params), docId }
       : await (async () => {
           const blob = await deps.loadDocument(r2Key);
           const markdown = await deps.toMarkdown(filename, blob);

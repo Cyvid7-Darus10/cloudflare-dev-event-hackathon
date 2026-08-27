@@ -4,7 +4,9 @@ import type { ReviewSessionDO } from "../session/ReviewSession.ts";
 import { documentToMarkdown, extractInvoice } from "./extract";
 import { runIngest, type IngestDeps } from "./pipeline";
 import type { IngestParams } from "./upload";
+import { matchInvoiceLive } from "../matching/index.ts";
 import demoInvoice from "../../fixtures/invoice-a.json";
+import demoInvoiceB from "../../fixtures/invoice-b.json";
 
 /**
  * The ingesting agent.
@@ -172,18 +174,7 @@ export class IngestAgent extends Agent<IngestAgentEnv, IngestState> {
           ),
         ),
 
-      // Michelle (workstream C) lands here at integration. Until then every
-      // line comes back unmatched, which is a truthful empty state rather than
-      // a fake one: the board shows the invoice and flags nothing.
-      match: async (invoice) =>
-        invoice.lineItems.map((line) => ({
-          lineId: line.lineId,
-          matchedSku: null,
-          matchMethod: "none" as const,
-          matchScore: 0,
-          flags: [],
-          resolution: "pending" as const,
-        })),
+      match: (invoice) => matchInvoiceLive(invoice, env),
 
       /*
        * Hand the finished session to D's Durable Object.
@@ -203,6 +194,7 @@ export class IngestAgent extends Agent<IngestAgentEnv, IngestState> {
       },
 
       demoInvoice: demoInvoice as ExtractedInvoice,
+      demoInvoiceB: demoInvoiceB as ExtractedInvoice,
     };
   }
 }

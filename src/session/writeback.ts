@@ -6,12 +6,9 @@
  * embedding, writing the audit row, purging the KV snapshot. This file does not
  * reimplement any of it. It decides *whether* a decision should reach her, and
  * calls her when it should.
- *
- * Until `src/matching/writeback.ts` lands this logs and returns the row it would
- * have written, which is enough for the DO and for `GET /api/audit` to be real.
- * Swap the marked call and nothing else here changes.
  */
 
+import { applyWriteBack } from "../matching/index.ts";
 import type { LineReview } from "../shared/contracts.ts";
 
 /** Shaped to match the `standard_versions` table in `architecture.md`. */
@@ -25,7 +22,7 @@ export type AuditRow = {
   lineId: string;
   actor: string;
   createdAt: number;
-  /** False while Michelle's module is not wired, so nothing claims a write that did not happen. */
+  /** True only after `applyWriteBack` returns. A thrown write must not claim a persist. */
   persisted: boolean;
 };
 
@@ -74,11 +71,8 @@ export async function recordResolution(
     persisted: false,
   };
 
-  // Michelle's write-back goes here:
-  //   await applyWriteBack(env, row);  // from ../matching/writeback.ts
-  //   row.persisted = true;
-  // Until then this is honest about not having written anything.
-  console.log(`writeback pending: ${row.sessionId} ${row.lineId} ${row.field}`, row);
+  await applyWriteBack(env, { ...event, actor: row.actor });
+  row.persisted = true;
 
   return row;
 }

@@ -115,6 +115,36 @@ describe("extractInvoice", () => {
     expect(result.docId).toBe("doc-abc");
   });
 
+  it("rewrites lineId to L0, L1, … in document order", async () => {
+    const scrambled = {
+      ...invoice,
+      lineItems: [
+        { ...line, lineId: "L99" },
+        { ...line, lineId: "row-2", sku: null },
+      ],
+    };
+    const result = await extractInvoice(fakeGateway([scrambled]), args);
+    expect(result.lineItems.map((l) => l.lineId)).toEqual(["L0", "L1"]);
+    expect(result.lineItems[1].sku).toBeNull();
+  });
+
+  it("throws when HACKATHON_AI_TOKEN is missing rather than calling with undefined", async () => {
+    const calls: Call[] = [];
+    const transport: ChatTransport = {
+      apiToken: undefined,
+      async fetch(url, init) {
+        calls.push({
+          url: String(url),
+          body: JSON.parse(String(init?.body)),
+          headers: init?.headers as Record<string, string>,
+        });
+        return Response.json({ success: true, result: {} });
+      },
+    };
+    await expect(extractInvoice(transport, args)).rejects.toThrow(/HACKATHON_AI_TOKEN/);
+    expect(calls).toHaveLength(0);
+  });
+
   it("reads the answer when the endpoint returns it under result.output", async () => {
     // The envelope key varies by model family; both are the same answer.
     const result = await extractInvoice(fakeGateway([invoice], [], "output"), args);

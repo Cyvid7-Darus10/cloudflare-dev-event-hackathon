@@ -153,6 +153,26 @@ describe("handleUpload", () => {
         { startIngest: f.startIngest },
       );
       expect(f.started[0].params.demo).toBe(true);
+      expect(f.started[0].params.filename).toBe("invoice-a.pdf");
+      expect(f.started[0].params.fixture).toBe("a");
+    });
+  });
+
+  describe("?demo=2", () => {
+    it("tells the agent to skip the LLM", async () => {
+      const f = fakes();
+      const response = await handleUpload(
+        new Request("https://x/api/documents?demo=2", { method: "POST" }),
+        { ...env, DB: f.DB } as any,
+        { startIngest: f.startIngest },
+      );
+      expect(response.status).toBe(202);
+      expect((await response.json() as { sessionId: string }).sessionId).toBeTruthy();
+      expect(f.started).toHaveLength(1);
+      expect(f.started[0].params.demo).toBe(true);
+      expect(f.started[0].params.filename).toBe("invoice-b.pdf");
+      expect(f.started[0].params.fixture).toBe("b");
+      expect(f.started[0].params.docId).toBe("demo-invoice-b");
     });
   });
 });

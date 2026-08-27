@@ -162,6 +162,7 @@ export function isIngestParams(value: unknown): value is IngestParams {
   if (typeof v.r2Key !== "string" || v.r2Key !== documentKey(v.docId)) return false;
   if (typeof v.filename !== "string" || v.filename.length > 180) return false;
   if (typeof v.demo !== "boolean") return false;
+  if (v.fixture !== undefined && v.fixture !== "a" && v.fixture !== "b") return false;
   return true;
 }
 
