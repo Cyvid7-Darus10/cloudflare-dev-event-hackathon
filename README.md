@@ -12,6 +12,12 @@ Thirty seconds, for pitching. Click through to play:
 
 [![Rectify — the 30-second trailer](public/trailer-poster.jpg)](https://github.com/Cyvid7-Darus10/cloudflare-dev-event-hackathon/raw/main/public/trailer.mp4)
 
+
+
+https://github.com/user-attachments/assets/07d29d7f-1d14-4d37-a5e7-a2832e3df4b8
+
+
+
 It also streams from the deployed Worker, which is the link to use in a room with
 patchy wifi and a browser already open:
 [rectify.cloudflare-hackathon.workers.dev/trailer.mp4](https://rectify.cloudflare-hackathon.workers.dev/trailer.mp4).
