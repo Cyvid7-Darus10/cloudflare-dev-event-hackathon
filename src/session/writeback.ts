@@ -62,7 +62,10 @@ export async function recordResolution(
     sku: line.matchedSku,
     field,
     oldValue: stringify(standardValueOf(line, field)),
-    newValue: stringify(line.finalValues?.[field] ?? documentValueOf(line, field)),
+    newValue: stringify(
+      (line.finalValues as Record<string, unknown> | undefined)?.[field]
+        ?? documentValueOf(line, field),
+    ),
     sessionId: event.sessionId,
     docId: event.docId,
     lineId: event.lineId,

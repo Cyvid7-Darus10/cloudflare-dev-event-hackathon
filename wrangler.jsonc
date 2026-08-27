@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "cloudflare-dev-event-hackathon",
+  "name": "rectify",
   "account_id": "1b37bb1b7821a80f6e683adb438a9b63",
   "main": "src/index.ts",
   // Browser Run quickAction needs >= 2026-03-24.

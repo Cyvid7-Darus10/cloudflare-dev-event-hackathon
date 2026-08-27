@@ -8,7 +8,7 @@
  */
 
 import { listStandard } from "../platform/catalogue.ts";
-import type { ReviewSession } from "../shared/contracts.ts";
+import type { LineReview, ReviewSession } from "../shared/contracts.ts";
 import type { ReviewSessionDO } from "../session/ReviewSession.ts";
 import { publishInvoice } from "./publish/index.ts";
 import fixture from "../../fixtures/session-a.json" with { type: "json" };
@@ -25,11 +25,7 @@ const json = (body: unknown, status = 200): Response =>
 
 /** The one place that knows how to reach a session object. */
 function stubFor(env: Env, id: string): DurableObjectStub<ReviewSessionDO> {
-  const ns = (env as Record<string, unknown>).REVIEW_SESSION as
-    | DurableObjectNamespace<ReviewSessionDO>
-    | undefined;
-  if (!ns) throw new Error("REVIEW_SESSION is not bound. See durable_objects in wrangler.jsonc.");
-  return ns.getByName(id);
+  return env.REVIEW_SESSION.getByName(id);
 }
 
 /**
@@ -78,8 +74,10 @@ export async function handleSessions(
     // that batch here so publishing writes back and renders in one call, and E
     // does not have to change to match D.
     if (request.method === "POST") {
-      const batch = await request.json<{ resolutions?: BatchResolution[] }>().catch(() => ({}));
-      const resolutions = batch.resolutions;
+      const batch = (await request.json().catch(() => null)) as
+        | { resolutions?: BatchResolution[] }
+        | null;
+      const resolutions = batch && typeof batch === "object" ? batch.resolutions : undefined;
       if (resolutions !== undefined && !Array.isArray(resolutions)) {
         return json({ error: "`resolutions` must be an array." }, 400);
       }
@@ -128,8 +126,15 @@ export async function handleSessions(
       resolution: "accept_standard" | "accept_document" | "edited";
       finalValues?: Record<string, unknown>;
     }>();
-    const result = await stub.resolve(body.lineId, body.resolution, body.finalValues);
-    return result.ok ? json({ ok: true, line: result.line }) : json({ error: result.error }, 400);
+    // DO RPC intersects the return with `Disposable`, which TS will not narrow
+    // through `result.ok`, so re-state the union the method actually returns.
+    const result = (await stub.resolve(
+      body.lineId,
+      body.resolution,
+      body.finalValues,
+    )) as { ok: true; line: LineReview } | { ok: false; error: string };
+    if (!result.ok) return json({ error: result.error }, 400);
+    return json({ ok: true, line: result.line });
   }
 
   if (!action) {

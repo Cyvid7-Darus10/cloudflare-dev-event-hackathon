@@ -16,7 +16,7 @@
     "migrate:remote": "wrangler d1 migrations apply rectify --remote",
     "seed-sql": "node scripts/generate-seed.mjs",
     "make-pdf": "node scripts/make-pdf.mjs",
-    "verify": "node scripts/verify.mjs https://cloudflare-dev-event-hackathon.cloudflare-hackathon.workers.dev"
+    "verify": "node scripts/verify.mjs https://rectify.cloudflare-hackathon.workers.dev"
   },
   "devDependencies": {
     "typescript": "^5.7.0",
