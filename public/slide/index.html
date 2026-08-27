@@ -6,252 +6,19 @@
 <title>Rectify : technical walkthrough</title>
 <meta name="description" content="Rectify: invoice reconciliation against a product standard that learns. Built on Cloudflare Workers for Cloudflare Singapore Developers Day, 27 August 2026." />
 <meta name="theme-color" content="#ffffff" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
-<style>
-/*
-  The deck uses the flag board's own tokens, from public/styles.css.
-  Three palettes across one product would read as three products. What changes
-  here is register, not language: bigger type, more air, one idea per slide.
-*/
-:root {
-  --paper: #fff;
-  --paper-2: #fafafa;
-  --ink: #1d1d1d;
-  --ink-2: #595959;
-  --ink-3: #767676;
-  --ink-4: #b3b3b3;
-  --rule: #e5e5e5;
-  --rule-2: #f0f0f0;
-  --edge: #949494;
-  --doc: #f6821f;
-  --doc-ink: #9c4a00;
-  --doc-soft: #fef6ef;
-  --doc-edge: #f6d3b0;
-  --ok: #3a7d5c;
-  --ok-soft: #f1f7f4;
-  --ok-edge: #cfe3d8;
-  --warn: #8a6417;
-  --warn-soft: #fbf7ee;
-  --warn-edge: #e8dcc2;
-  --lost: #9c3a3a;
-  --lost-soft: #fbf1f1;
-  --lost-edge: #e8cfcf;
-  --ui: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --r-sm: 4px; --r-md: 6px; --r-lg: 8px;
-  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 20px; --s-5: 32px;
-  --ease: cubic-bezier(.32,.72,0,1);
-}
-
-* { box-sizing: border-box; }
-html, body { height: 100%; }
-body {
-  margin: 0; background: var(--paper); color: var(--ink);
-  font-family: var(--ui); font-size: 15px; line-height: 1.5;
-  -webkit-font-smoothing: antialiased; overflow: hidden;
-}
-h1, h2, h3, p, ul, ol, dl, dd, figure { margin: 0; }
-ul { list-style: none; padding: 0; }
-b, strong { font-weight: 600; }
-
-/* The dashed guide layer is the app's strongest signature. Same idea here:
-   two verticals, two horizontals, a small square node at each crossing. */
-.guides { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
-.guides i { position: absolute; background: none; }
-.guides .v { top: 0; bottom: 0; border-left: 1px dashed var(--rule); }
-.guides .h { left: 0; right: 0; border-top: 1px dashed var(--rule); }
-.guides .n {
-  width: 7px; height: 7px; background: var(--paper);
-  border: 1px solid var(--ink-4); transform: translate(-50%, -50%);
-}
-@media (max-width: 900px) { .guides { display: none; } }
-
-/* ---- slide frame ---- */
-.deck { position: relative; z-index: 1; height: 100%; }
-.s {
-  position: absolute; inset: 0; display: none;
-  padding: clamp(26px, 5vh, 54px) clamp(20px, 6vw, 84px) 74px;
-  overflow-y: auto;
-}
-.s.on { display: flex; flex-direction: column; }
-.s > * { max-width: 1140px; width: 100%; margin-inline: auto; }
-
-.eyebrow {
-  font-family: var(--mono); font-size: 11px; font-weight: 500;
-  letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3);
-  margin-bottom: var(--s-3);
-}
-h2 {
-  font-size: clamp(25px, 3.6vw, 40px); font-weight: 600;
-  letter-spacing: -.032em; line-height: 1.08;
-}
-h2 .dim { display: block; color: var(--ink-3); font-weight: 500; }
-.lede {
-  margin-top: var(--s-4); font-size: clamp(16px, 1.9vw, 20px);
-  line-height: 1.5; color: var(--ink-2); max-width: 64ch;
-}
-.lede em { font-style: normal; color: var(--ink); font-weight: 500; }
-.body { margin-top: var(--s-4); max-width: 68ch; color: var(--ink-2); }
-.body p + p { margin-top: var(--s-3); }
-.grow { flex: 1 1 auto; min-height: var(--s-4); }
-
-/* ---- title ---- */
-.title { display: flex; flex-direction: column; justify-content: center; height: 100%; }
-.brand { display: flex; align-items: center; gap: 10px; margin-bottom: var(--s-5); }
-.brand svg { width: 28px; height: 28px; }
-.brand b { font-size: 20px; font-weight: 600; letter-spacing: -.02em; }
-.brand span { font-family: var(--mono); font-size: 12.5px; color: var(--ink-3); }
-.title h1 {
-  font-size: clamp(34px, 7vw, 72px); font-weight: 600;
-  letter-spacing: -.038em; line-height: 1.02;
-}
-.title h1 .dim { display: block; color: var(--ink-3); font-weight: 500; }
-.url {
-  margin-top: var(--s-5); font-family: var(--mono); font-size: 13.5px;
-  color: var(--doc-ink); word-break: break-all;
-}
-.by { margin-top: var(--s-3); font-family: var(--mono); font-size: 12.5px; color: var(--ink-3); }
-
-/* ---- flat panels: borders carry separation, nothing lifts ---- */
-.panel {
-  background: var(--paper); border: 1px solid var(--rule);
-  border-radius: var(--r-lg); padding: var(--s-4);
-}
-.panel h3 { font-size: 15px; font-weight: 600; }
-.panel p { margin-top: 6px; font-size: 13.5px; color: var(--ink-2); }
-
-.cols { display: grid; gap: var(--s-3); margin-top: var(--s-4); }
-.c2 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-.c3 { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
-
-/* The 1px gap is the divider. Same trick the board uses on its comparisons. */
-.mesh {
-  display: grid; gap: 1px; background: var(--rule);
-  border: 1px solid var(--rule); border-radius: var(--r-md);
-  overflow: hidden; margin-top: var(--s-4);
-}
-.mesh > div { background: var(--paper); padding: var(--s-3) var(--s-4); }
-.mesh dt {
-  font-family: var(--mono); font-size: 11px; letter-spacing: .06em;
-  text-transform: uppercase; color: var(--ink-3); margin-bottom: 4px;
-}
-.mesh dd { font-family: var(--mono); font-size: 22px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.mesh dd small { display: block; font-family: var(--ui); font-size: 12.5px; color: var(--ink-3); letter-spacing: 0; margin-top: 4px; }
-
-/* ---- data tables: mono, no zebra, no vertical rules ---- */
-.tw { overflow-x: auto; margin-top: var(--s-4); }
-table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 13.5px; }
-th {
-  font-family: var(--mono); font-size: 11px; font-weight: 400; text-align: left;
-  letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3);
-  padding: 7px 14px 7px 0; border-bottom: 1px solid var(--rule); white-space: nowrap;
-}
-td {
-  padding: 8px 14px 8px 0; border-bottom: 1px solid var(--rule-2);
-  vertical-align: top; color: var(--ink-2);
-}
-td.k { font-family: var(--mono); color: var(--ink); white-space: nowrap; }
-td.n { font-family: var(--mono); text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
-th.n { text-align: right; }
-
-/* ---- pills ---- */
-.p {
-  display: inline-block; border-radius: 999px; padding: 2px 9px;
-  font-size: 11px; font-weight: 500; letter-spacing: .04em;
-  text-transform: uppercase; border: 1px solid transparent; white-space: nowrap;
-}
-.p--ok { background: var(--ok-soft); color: var(--ok); border-color: var(--ok-edge); }
-.p--doc { background: var(--doc-soft); color: var(--doc-ink); border-color: var(--doc-edge); }
-.p--warn { background: var(--warn-soft); color: var(--warn); border-color: var(--warn-edge); }
-.p--lost { background: var(--lost-soft); color: var(--lost); border-color: var(--lost-edge); }
-.p--off { background: var(--paper-2); color: var(--ink-3); border-color: var(--rule); }
-
-/* ---- the ladder ---- */
-.ladder { margin-top: var(--s-4); display: grid; gap: var(--s-2); }
-.rung {
-  display: grid; grid-template-columns: 30px 1fr auto; gap: var(--s-3);
-  align-items: baseline; padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--rule); border-radius: var(--r-md);
-}
-.rung.hit { border-color: var(--doc-edge); background: var(--doc-soft); }
-.rung .no { font-family: var(--mono); font-size: 12.5px; color: var(--ink-3); }
-.rung b { font-weight: 600; }
-.rung p { margin-top: 3px; font-size: 13px; color: var(--ink-2); }
-
-/* ---- steps ---- */
-.steps { margin-top: var(--s-4); counter-reset: n; display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: var(--r-md); overflow: hidden; }
-.steps li { background: var(--paper); padding: var(--s-3) var(--s-4); counter-increment: n; display: grid; grid-template-columns: 26px 1fr; gap: var(--s-3); }
-.steps li::before { content: counter(n); font-family: var(--mono); font-size: 12.5px; color: var(--ink-3); }
-.steps b { font-weight: 600; }
-.steps span { display: block; font-size: 13px; color: var(--ink-2); margin-top: 2px; }
-
-/* dashed reads as provisional, exactly as it does in the app */
-.prov { border-style: dashed; }
-
-.quote {
-  margin-top: var(--s-4); padding-left: var(--s-4);
-  border-left: 3px solid var(--doc); font-size: clamp(17px, 2.2vw, 23px);
-  line-height: 1.4; color: var(--ink); max-width: 56ch;
-}
-.note { margin-top: var(--s-4); font-size: 13px; color: var(--ink-3); max-width: 68ch; }
-code { font-family: var(--mono); font-size: .92em; color: var(--ink); }
-
-/* ---- chrome ---- */
-.bar {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 3;
-  display: flex; align-items: center; gap: var(--s-4);
-  padding: 11px clamp(16px, 6vw, 84px);
-  background: var(--paper); border-top: 1px solid var(--rule);
-  font-family: var(--mono); font-size: 12px; color: var(--ink-3);
-}
-.bar .t { flex: 1 1 auto; color: var(--ink-2); }
-.bar .t b { color: var(--ink); font-weight: 500; }
-.dots { display: flex; gap: 5px; }
-.dots i { width: 6px; height: 6px; border-radius: 999px; background: var(--rule); transition: background 110ms var(--ease); }
-.dots i.on { background: var(--doc); }
-.bar kbd {
-  font-family: var(--mono); font-size: 11px; border: 1px solid var(--edge);
-  border-radius: var(--r-sm); padding: 1px 5px; color: var(--ink-2);
-}
-.nav { display: flex; gap: var(--s-2); }
-.nav button {
-  font: inherit; font-size: 12px; cursor: pointer; color: var(--ink-2);
-  background: var(--paper); border: 1px solid var(--edge);
-  border-radius: var(--r-sm); padding: 3px 10px;
-}
-.nav button:hover { background: var(--paper-2); color: var(--ink); }
-:focus-visible { outline: 2px solid var(--doc); outline-offset: 2px; }
-
-svg .st { stroke: var(--edge); fill: none; stroke-width: 1; }
-svg .sd { stroke: var(--ink-4); fill: none; stroke-width: 1; stroke-dasharray: 3 3; }
-svg .bx { fill: var(--paper); stroke: var(--edge); stroke-width: 1; }
-svg .bxd { fill: var(--doc-soft); stroke: var(--doc-edge); stroke-width: 1; }
-svg text { font-family: var(--mono); font-size: 10.5px; fill: var(--ink-2); }
-svg text.lbl { font-size: 9.5px; fill: var(--ink-3); }
-svg text.hd { fill: var(--ink); font-size: 11px; }
-
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
-
-@media print {
-  @page { size: A4 landscape; margin: 12mm; }
-  body { overflow: visible; }
-  .guides, .bar { display: none !important; }
-  .deck { height: auto; }
-  .s { position: static; display: flex !important; break-after: page; padding: 0 0 10mm; min-height: auto; overflow: visible; }
-  .s:last-child { break-after: auto; }
-  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-}
-</style>
+<link rel="stylesheet" href="./slide.css" />
 </head>
 <body>
 
 <div class="guides" aria-hidden="true">
-  <i class="v" style="left:14px"></i><i class="v" style="right:14px"></i>
-  <i class="h" style="top:70px"></i><i class="h" style="bottom:100px"></i>
-  <i class="n" style="left:14px;top:70px"></i><i class="n" style="right:11px;top:70px"></i>
-  <i class="n" style="left:14px;bottom:97px"></i><i class="n" style="right:11px;bottom:97px"></i>
+  <i class="v vl"></i><i class="v vr"></i>
+  <i class="h ht"></i><i class="h hb"></i>
+  <i class="n n1"></i><i class="n n2"></i>
+  <i class="n n3"></i><i class="n n4"></i>
 </div>
 
 <main class="deck">
@@ -268,7 +35,7 @@ svg text.hd { fill: var(--ink); font-size: 11px; }
       <b>Rectify</b><span>invoice review</span>
     </div>
     <h1><span class="dim">Invoice reconciliation</span>against a standard that learns.</h1>
-    <p class="lede">Every line checked against a canonical price list, every difference flagged with the money at stake, and every accepted correction teaching the catalogue.</p>
+    <p class="lede">It checks every line against a canonical price list, flags each difference with the money at stake, and writes every accepted correction back into the catalogue.</p>
     <p class="url">https://rectify.cloudflare-hackathon.workers.dev</p>
     <p class="by">Cloudflare Singapore Developers Day &middot; 27 August 2026 &middot; Bryan, Cyrus, Michelle, Siva, Zuriel</p>
   </div>
@@ -305,22 +72,22 @@ svg text.hd { fill: var(--ink); font-size: 11px; }
 <!-- 4 -->
 <section class="s">
   <p class="eyebrow">The payoff</p>
-  <h2><span class="dim">The point is not that it flags things.</span>It is that it stops needing to.</h2>
-  <div class="mesh" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
+  <h2><span class="dim">It flags plenty on the first invoice.</span>It has less to flag on the second.</h2>
+  <div class="mesh mesh--220">
     <div><dt>Invoice A</dt><dd>8 decisions<small>Unrecognised names, a stale price, a unit of measure billed wrong.</small></dd></div>
     <div><dt>Write-back</dt><dd>alias + price<small>The vendor's wording is stored against the SKU. The catalogue version bumps.</small></dd></div>
     <div><dt>Invoice B, same vendor</dt><dd>tier 2, not tier 4<small>The same wording now hits a known alias instead of asking a person. That is the design; the matcher is where our two hours ran out.</small></dd></div>
   </div>
   <div class="grow"></div>
-  <p class="quote">That is the demo. Not a model that reads invoices, but a catalogue that gets better every time a person touches it.</p>
+  <p class="quote">That is the demo: a catalogue that gets better every time a person touches it. The model only does the reading.</p>
 </section>
 
 <!-- 5 -->
 <section class="s">
   <p class="eyebrow">Architecture</p>
   <h2>One Worker, one deploy.</h2>
-  <div class="tw" style="margin-top:var(--s-4)">
-  <svg viewBox="0 0 1080 340" width="100%" style="min-width:820px" role="img" aria-label="Upload flows to a Worker, then R2 and a Workflow of five steps, into a Durable Object, then to the reviewer UI over WebSocket, then write-back to D1 and publish.">
+  <div class="tw">
+  <svg viewBox="0 0 1080 340" width="100%" class="arch" role="img" aria-label="Upload flows to a Worker, then R2 and a Workflow of five steps, into a Durable Object, then to the reviewer UI over WebSocket, then write-back to D1 and publish.">
     <rect class="bx" x="4" y="20" width="112" height="40" rx="6"/><text x="60" y="45" text-anchor="middle" class="hd">Upload</text>
     <line class="st" x1="116" y1="40" x2="160" y2="40"/>
     <rect class="bxd" x="160" y="20" width="112" height="40" rx="6"/><text x="216" y="45" text-anchor="middle" class="hd">Worker</text>
@@ -379,7 +146,7 @@ svg text.hd { fill: var(--ink); font-size: 11px; }
 <section class="s">
   <p class="eyebrow">The diff</p>
   <h2>Where the money actually hides.</h2>
-  <p class="lede">A flag is not a red mark. It states the delta and the money at stake across the quantity, because that is the number a reviewer is deciding about.</p>
+  <p class="lede">Each flag states the delta and the money at stake across the quantity, because that is the number a reviewer is deciding about.</p>
   <div class="tw">
     <table>
       <thead><tr><th>Field</th><th>Rule</th><th>Why it matters</th></tr></thead>
@@ -400,8 +167,8 @@ svg text.hd { fill: var(--ink); font-size: 11px; }
   <h2><span class="dim">Three decisions.</span>Only two of them touch the catalogue.</h2>
   <div class="cols c3">
     <div class="panel"><h3><span class="p p--doc">Correct the invoice</span></h3><p><b>The standard was right.</b> The corrected value goes into the published invoice. The catalogue is untouched, because it had nothing to learn.</p></div>
-    <div class="panel" style="border-color:var(--ok-edge)"><h3><span class="p p--ok">Update the standard</span></h3><p><b>The standard was stale.</b> The price is updated, the version bumps, the vendor's wording is stored as an alias, and an audit row is written.</p></div>
-    <div class="panel" style="border-color:var(--warn-edge)"><h3><span class="p p--warn">Enter different values</span></h3><p><b>Neither side was right.</b> A person types a third value. Same write-back path, with the actor recorded.</p></div>
+    <div class="panel panel--ok"><h3><span class="p p--ok">Update the standard</span></h3><p><b>The standard was stale.</b> The price is updated, the version bumps, the vendor's wording is stored as an alias, and an audit row is written.</p></div>
+    <div class="panel panel--warn"><h3><span class="p p--warn">Enter different values</span></h3><p><b>Neither side was right.</b> A person types a third value. Same write-back path, with the actor recorded.</p></div>
   </div>
   <div class="grow"></div>
   <p class="quote">Getting this backwards would have the system learn from the invoices it just rejected. It is the one rule in the codebase worth stating twice.</p>
@@ -416,7 +183,7 @@ svg text.hd { fill: var(--ink); font-size: 11px; }
     <div class="panel"><h3>One object per review</h3><p>It holds the session and serialises edits, so two reviewers racing on the same line cannot overwrite each other. The catalogue lives in D1, not here: two reviewers updating the same SKU is a different problem with a different owner.</p></div>
     <div class="panel"><h3>Hibernation, not a held socket</h3><p>The WebSocket Hibernation API hands the socket to the runtime, so the object sleeps between messages and still wakes to deliver one. An object holding an open connection bills for idle time and eventually drops it anyway.</p></div>
   </div>
-  <div class="mesh" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))">
+  <div class="mesh mesh--190">
     <div><dt>Then</dt><dd>1 persist<small>An object can hibernate between any two awaits.</small></dd></div>
     <div><dt>Then</dt><dd>2 write back<small>The catalogue and its audit row.</small></dd></div>
     <div><dt>Only then</dt><dd>3 broadcast<small>Tell the other browsers what actually landed.</small></dd></div>
@@ -428,10 +195,10 @@ svg text.hd { fill: var(--ink); font-size: 11px; }
 <section class="s">
   <p class="eyebrow">The output</p>
   <h2><span class="dim">A corrected invoice,</span>and proof it was corrected.</h2>
-  <div class="mesh" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
+  <div class="mesh mesh--200">
     <div><dt>As invoiced</dt><dd>4,325.34<small>The supplier's own stated total, not our re-addition of their lines.</small></dd></div>
     <div><dt>As corrected</dt><dd>4,255.58<small>Corrections applied as a delta, so header adjustments survive.</small></dd></div>
-    <div><dt>Difference</dt><dd style="color:var(--ok)">-69.76<small>Overstated, across 4 lines, on the demo invoice.</small></dd></div>
+    <div><dt>Difference</dt><dd class="dd-ok">-69.76<small>Overstated, across 4 lines, on the demo invoice.</small></dd></div>
   </div>
   <div class="cols c2">
     <div class="panel"><h3>Every changed field is marked</h3><p>The corrected value with the supplier's original struck beneath it, and the reason it moved. A line total recomputed from a corrected unit price says exactly that, rather than borrowing an unrelated flag's wording.</p></div>
@@ -477,7 +244,7 @@ svg text.hd { fill: var(--ink); font-size: 11px; }
       </tbody>
     </table>
   </div>
-  <p class="note" style="margin-top:var(--s-4)">One more, and it is the honest headline rather than a footnote. <b>The matcher and the write-back did not land inside two hours.</b> Ingest, the session, the review board and the corrected invoice all run; the tier ladder on the earlier slide is the design and the fixture encodes exactly what it would produce, including a semantic hit at 0.91. Every audit row we write carries <code>persisted: false</code> until that module exists, because nothing here claims a write that did not happen.</p>
+  <p class="note">One more, and it is the honest headline rather than a footnote. <b>The matcher and the write-back did not land inside two hours.</b> Ingest, the session, the review board and the corrected invoice all run; the tier ladder on the earlier slide is the design and the fixture encodes exactly what it would produce, including a semantic hit at 0.91. Every audit row we write carries <code>persisted: false</code> until that module exists, because nothing here claims a write that did not happen.</p>
   <div class="grow"></div>
   <p class="quote">We would rather tell you eight bindings are load-bearing and one workstream is missing than claim twelve and have you find the stub.</p>
 </section>
@@ -543,42 +310,6 @@ svg text.hd { fill: var(--ink); font-size: 11px; }
   <span class="nav"><button type="button" id="prev">Back</button><button type="button" id="next">Next</button></span>
 </div>
 
-<script>
-(function () {
-  var slides = Array.prototype.slice.call(document.querySelectorAll(".s"));
-  var titles = ["Rectify","The problem","The product","The payoff","Architecture",
-    "Matching ladder","The diff","Learning loop","Durable Object","The output",
-    "Services","What we cut","The team","Demo","Close"];
-  var dots = document.getElementById("d");
-  var label = document.getElementById("t");
-  var i = 0;
-
-  slides.forEach(function (_, n) {
-    var el = document.createElement("i");
-    el.addEventListener("click", function () { go(n); });
-    dots.appendChild(el);
-  });
-
-  function go(n) {
-    i = Math.max(0, Math.min(slides.length - 1, n));
-    slides.forEach(function (s, k) { s.classList.toggle("on", k === i); });
-    Array.prototype.forEach.call(dots.children, function (el, k) { el.classList.toggle("on", k === i); });
-    label.innerHTML = "<b>" + (i + 1) + "</b> / " + slides.length + " &nbsp; " + titles[i];
-    slides[i].scrollTop = 0;
-    if (location.hash !== "#" + (i + 1)) history.replaceState(null, "", "#" + (i + 1));
-  }
-
-  document.addEventListener("keydown", function (e) {
-    if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") { e.preventDefault(); go(i + 1); }
-    else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); go(i - 1); }
-    else if (e.key === "Home") { go(0); }
-    else if (e.key === "End") { go(slides.length - 1); }
-  });
-  document.getElementById("next").addEventListener("click", function () { go(i + 1); });
-  document.getElementById("prev").addEventListener("click", function () { go(i - 1); });
-
-  go(Math.max(0, (parseInt(location.hash.slice(1), 10) || 1) - 1));
-})();
-</script>
+<script src="./slide.js" defer></script>
 </body>
 </html>
