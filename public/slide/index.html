@@ -76,7 +76,7 @@
   <div class="mesh mesh--220">
     <div><dt>Invoice A</dt><dd>8 decisions<small>Unrecognised names, a stale price, a unit of measure billed wrong.</small></dd></div>
     <div><dt>Write-back</dt><dd>alias + price<small>The vendor's wording is stored against the SKU. The catalogue version bumps.</small></dd></div>
-    <div><dt>Invoice B, same vendor</dt><dd>tier 2, not tier 4<small>The same wording now hits a known alias instead of asking a person. That is the design; the matcher is where our two hours ran out.</small></dd></div>
+    <div><dt>Invoice B, same vendor</dt><dd>tier 2, not tier 4<small>The same wording now hits a known alias instead of asking a person.</small></dd></div>
   </div>
   <div class="grow"></div>
   <p class="quote">That is the demo: a catalogue that gets better every time a person touches it. The model only does the reading.</p>
@@ -87,7 +87,7 @@
   <p class="eyebrow">Architecture</p>
   <h2>One Worker, one deploy.</h2>
   <div class="tw">
-  <svg viewBox="0 0 1080 340" width="100%" class="arch" role="img" aria-label="Upload flows to a Worker, then R2 and a Workflow of five steps, into a Durable Object, then to the reviewer UI over WebSocket, then write-back to D1 and publish.">
+  <svg viewBox="0 0 1080 340" width="100%" class="arch" role="img" aria-label="Upload flows to a Worker, then R2 and an ingest agent, one Durable Object per document, which runs five steps and publishes live status to the reviewer UI. It seeds a review session Durable Object, which writes back to D1 and publishes the corrected invoice.">
     <rect class="bx" x="4" y="20" width="112" height="40" rx="6"/><text x="60" y="45" text-anchor="middle" class="hd">Upload</text>
     <line class="st" x1="116" y1="40" x2="160" y2="40"/>
     <rect class="bxd" x="160" y="20" width="112" height="40" rx="6"/><text x="216" y="45" text-anchor="middle" class="hd">Worker</text>
@@ -96,14 +96,16 @@
     <rect class="bx" x="160" y="92" width="112" height="34" rx="6"/><text x="216" y="114" text-anchor="middle">R2 original</text>
 
     <line class="st" x1="272" y1="40" x2="320" y2="40"/>
-    <rect class="bx" x="320" y="10" width="300" height="200" rx="6"/>
-    <text x="336" y="32" class="hd">Workflow</text>
+    <rect class="bxd" x="320" y="10" width="300" height="200" rx="6"/>
+    <text x="336" y="32" class="hd">IngestAgent</text><text x="604" y="32" text-anchor="end" class="lbl">one per document</text>
     <text x="336" y="60">1 &nbsp;toMarkdown</text><text x="596" y="60" text-anchor="end" class="lbl">Workers AI</text>
     <text x="336" y="88">2 &nbsp;extract invoice</text><text x="596" y="88" text-anchor="end" class="lbl">AI Gateway</text>
-    <text x="336" y="116">3 &nbsp;match each line</text><text x="596" y="116" text-anchor="end" class="lbl">D1</text>
+    <text x="336" y="116">3 &nbsp;match each line</text><text x="596" y="116" text-anchor="end" class="lbl">KV &middot; D1 &middot; Vectorize</text>
     <text x="336" y="144">4 &nbsp;diff to flags</text><text x="596" y="144" text-anchor="end" class="lbl">pure TS</text>
     <text x="336" y="172">5 &nbsp;seed session</text><text x="596" y="172" text-anchor="end" class="lbl">Durable Object</text>
 
+    <line class="sd" x1="620" y1="27" x2="668" y2="27"/>
+    <text x="644" y="20" text-anchor="middle" class="lbl">status</text>
     <line class="st" x1="620" y1="110" x2="668" y2="110"/>
     <rect class="bxd" x="668" y="80" width="150" height="60" rx="6"/>
     <text x="743" y="106" text-anchor="middle" class="hd">ReviewSession</text><text x="743" y="124" text-anchor="middle" class="lbl">one per review</text>
@@ -210,7 +212,7 @@
 <!-- 11 -->
 <section class="s">
   <p class="eyebrow">Cloudflare services</p>
-  <h2><span class="dim">Eight bindings carrying the pipeline.</span>Each one called in code, not just attached.</h2>
+  <h2><span class="dim">Ten bindings carrying the pipeline.</span>Each one called in code, not just attached.</h2>
   <div class="tw">
     <table>
       <thead><tr><th>Service</th><th>What it does here</th><th>Evidence</th></tr></thead>
@@ -218,9 +220,11 @@
         <tr><td class="k">Workers</td><td>The API and the UI. One deployment, one URL.</td><td><code>src/index.ts</code></td></tr>
         <tr><td class="k">Workers AI</td><td><code>toMarkdown()</code> parses PDF, DOCX, XLSX and images natively. No parsing library.</td><td><code>src/ingest/extract.ts</code></td></tr>
         <tr><td class="k">AI Gateway</td><td>Every model call routed through it, for caching and token logs.</td><td><code>cf-aig-gateway-id</code></td></tr>
-        <tr><td class="k">Workflows</td><td>Ingest as durable steps. A failed extraction retries from that step, not from the upload.</td><td><code>env.INGEST.create()</code></td></tr>
+        <tr><td class="k">Agents SDK</td><td>The ingest agent: one Durable Object per document, publishing live status the board reads while extraction runs.</td><td><code>src/ingest/agent.ts</code></td></tr>
         <tr><td class="k">Durable Objects</td><td>One review session, serialised edits, WebSocket broadcast.</td><td><code>src/session/ReviewSession.ts</code></td></tr>
         <tr><td class="k">D1</td><td>The catalogue, its aliases, its version history and the audit log.</td><td><code>migrations/0001_init.sql</code></td></tr>
+        <tr><td class="k">KV</td><td>The catalogue snapshot the matcher reads first, with D1 as the fallback.</td><td><code>src/matching/live.ts</code></td></tr>
+        <tr><td class="k">Vectorize</td><td>Tier 3 of the ladder: embedded descriptions, nearest catalogue entry above 0.82.</td><td><code>src/matching/embeddings.ts</code></td></tr>
         <tr><td class="k">R2</td><td>Original uploads. Publish serves HTML rather than writing a PDF back.</td><td><code>env.DOCS.put()</code></td></tr>
         <tr><td class="k">Static Assets</td><td>The flag board, served before the Worker runs.</td><td><code>run_worker_first</code></td></tr>
       </tbody>
@@ -231,22 +235,20 @@
 <!-- 12 -->
 <section class="s">
   <p class="eyebrow">What we cut, and why</p>
-  <h2><span class="dim">Four more are bound and reachable.</span>They are not doing work yet.</h2>
-  <p class="lede">We wrote a drop ladder before we started and then followed it. These four were items one to four on it, in that order.</p>
+  <h2><span class="dim">Two more are bound and reachable.</span>They are not doing work yet.</h2>
+  <p class="lede">We wrote a drop ladder before we started and then followed it. These two sat at the top of it.</p>
   <div class="tw">
     <table>
       <thead><tr><th>Service</th><th>Status</th><th>What we did instead</th></tr></thead>
       <tbody>
         <tr><td class="k">Queues</td><td><span class="p p--off">bound, unused</span></td><td>Bulk upload never became the story. One invoice at a time carries the demo.</td></tr>
         <tr><td class="k">Browser Run</td><td><span class="p p--off">bound, unused</span></td><td>The corrected invoice is styled HTML with a print stylesheet. Ctrl+P is a real PDF, and it costs no rate limit.</td></tr>
-        <tr><td class="k">Vectorize</td><td><span class="p p--off">bound, unused</span></td><td>Tiers 1 and 2 of the ladder carry the demo. Semantic match is the tier we did not need to reach.</td></tr>
-        <tr><td class="k">KV</td><td><span class="p p--off">bound, unused</span></td><td>Read D1 directly. At catalogue scale the snapshot saves nothing worth the sync problem.</td></tr>
       </tbody>
     </table>
   </div>
-  <p class="note">One more, and it is the honest headline rather than a footnote. <b>The matcher and the write-back did not land inside two hours.</b> Ingest, the session, the review board and the corrected invoice all run; the tier ladder on the earlier slide is the design and the fixture encodes exactly what it would produce, including a semantic hit at 0.91. Every audit row we write carries <code>persisted: false</code> until that module exists, because nothing here claims a write that did not happen.</p>
+  <p class="note">Two rows left this table during the build rather than joining it. The matcher and the write-back landed late but real: the ladder runs live against the KV snapshot with D1 as fallback, semantic match hits Vectorize above the 0.82 floor, and an audit row claims <code>persisted</code> only after its D1 write succeeds.</p>
   <div class="grow"></div>
-  <p class="quote">We would rather tell you eight bindings are load-bearing and one workstream is missing than claim twelve and have you find the stub.</p>
+  <p class="quote">We would rather tell you two bindings are idle than dress them up as load-bearing.</p>
 </section>
 
 <!-- 13 -->
@@ -279,7 +281,7 @@
     <li><div><b>Decide</b><span>Correct the invoice on one. Update the standard on another. The standard was out of date; now it is not.</span></div></li>
     <li><div><b>Show the audit trail</b><span>Every change, who made it, when, and from what to what.</span></div></li>
     <li><div><b>Publish</b><span>The corrected invoice, showing which lines moved, why, and the total that changed. Integer cents, a content hash, and a print stylesheet that gives a real PDF.</span></div></li>
-    <li><div><b>Then the honest part</b><span>Invoice B is where the standard proves it learned. The matcher and the write-back are exactly where our two hours ran out, so we will show you the loop, not claim it closed.</span></div></li>
+    <li><div><b>Then invoice B</b><span>Same vendor, same odd wording. The names that needed a person last time hit the alias tier this time. That is the standard proving it learned.</span></div></li>
   </ol>
 </section>
 
@@ -294,7 +296,7 @@
       </svg>
       <b>Rectify</b><span>invoice review</span>
     </div>
-    <h2><span class="dim">Eight Cloudflare services.</span>One Worker, one deploy, one URL.</h2>
+    <h2><span class="dim">Ten Cloudflare services.</span>One Worker, one deploy, one URL.</h2>
     <p class="lede">The model reads and compares. A person decides. The catalogue gets better every time.</p>
     <p class="url">https://rectify.cloudflare-hackathon.workers.dev</p>
     <p class="by">Bryan &middot; Cyrus &middot; Michelle &middot; Siva &middot; Zuriel</p>
