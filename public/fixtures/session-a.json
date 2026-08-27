@@ -1,0 +1,256 @@
+{
+  "sessionId": "ses_a1",
+  "docId": "doc_a1",
+  "status": "reviewing",
+  "updatedAt": 1787900000000,
+  "invoice": {
+    "docId": "doc_a1",
+    "vendor": "Northwind Trading Pte Ltd",
+    "invoiceNumber": "NW-INV-20418",
+    "issueDate": "2026-08-21",
+    "currency": "SGD",
+    "lineItems": [
+      {
+        "lineId": "L0",
+        "rawText": "Widget Pro 2K  x 24  @ 41.50  = 996.00",
+        "sku": "SKU-4471",
+        "description": "Widget Pro 2K",
+        "quantity": 24,
+        "unitPrice": 41.5,
+        "lineTotal": 996,
+        "uom": "EA"
+      },
+      {
+        "lineId": "L1",
+        "rawText": "Cold-pressed rapeseed oil 5L  x 6  @ 88.00 = 528.00",
+        "sku": "SKU-1042",
+        "description": "Cold-pressed rapeseed oil 5L",
+        "quantity": 6,
+        "unitPrice": 88,
+        "lineTotal": 528,
+        "uom": "CASE"
+      },
+      {
+        "lineId": "L2",
+        "rawText": "Sea Salt Flakes 250g  x 40  @ 6.20  = 248.00",
+        "sku": null,
+        "description": "Sea Salt Flakes 250g",
+        "quantity": 40,
+        "unitPrice": 6.2,
+        "lineTotal": 248,
+        "uom": "EA"
+      },
+      {
+        "lineId": "L3",
+        "rawText": "Enamel mug 350ml  x 12  @ 14.00 = 172.00",
+        "sku": "SKU-5520",
+        "description": "Enamel mug 350ml",
+        "quantity": 12,
+        "unitPrice": 14,
+        "lineTotal": 172,
+        "uom": "EA"
+      },
+      {
+        "lineId": "L4",
+        "rawText": "Bamboo brush, refill head  x 30  @ 3.90 = 117.00",
+        "sku": null,
+        "description": "Bamboo brush, refill head",
+        "quantity": 30,
+        "unitPrice": 3.9,
+        "lineTotal": 117,
+        "uom": "EA"
+      },
+      {
+        "lineId": "L5",
+        "rawText": "Glass storage jar 1L  x 18  @ 9.75 = 175.50",
+        "sku": "SKU-8890",
+        "description": "Glass storage jar 1L",
+        "quantity": 18,
+        "unitPrice": 9.75,
+        "lineTotal": 175.5,
+        "uom": "EA"
+      }
+    ],
+    "totals": {
+      "subtotal": 2236.5,
+      "tax": 201.29,
+      "total": 2437.79
+    }
+  },
+  "lines": [
+    {
+      "lineId": "L0",
+      "matchedSku": "SKU-4471",
+      "matchMethod": "exact",
+      "matchScore": 1,
+      "resolution": "pending",
+      "flags": [
+        {
+          "field": "unitPrice",
+          "documentValue": 41.5,
+          "standardValue": 38.0,
+          "status": "mismatch",
+          "confidence": 1,
+          "reason": "Billed 41.50 against a contracted 38.00, a 9.2% increase. Across 24 units that is 84.00 over."
+        },
+        {
+          "field": "description",
+          "documentValue": "Widget Pro 2K",
+          "standardValue": "Widget Professional 2000",
+          "status": "mismatch",
+          "confidence": 0.88,
+          "reason": "Not the canonical name and not a known alias. Accepting the document teaches this vendor's naming."
+        },
+        {
+          "field": "uom",
+          "documentValue": "EA",
+          "standardValue": "EA",
+          "status": "match",
+          "confidence": 1,
+          "reason": "Unit of measure agrees."
+        }
+      ]
+    },
+    {
+      "lineId": "L1",
+      "matchedSku": "SKU-1042",
+      "matchMethod": "exact",
+      "matchScore": 1,
+      "resolution": "pending",
+      "flags": [
+        {
+          "field": "uom",
+          "documentValue": "CASE",
+          "standardValue": "EA",
+          "status": "mismatch",
+          "confidence": 1,
+          "reason": "Priced per case, billed per unit. At 6 units the difference is 440.00 if the standard is right."
+        },
+        {
+          "field": "unitPrice",
+          "documentValue": 88,
+          "standardValue": 88,
+          "status": "match",
+          "confidence": 1,
+          "reason": "Unit price agrees with the contracted price."
+        },
+        {
+          "field": "lineTotal",
+          "documentValue": 528,
+          "standardValue": 528,
+          "status": "match",
+          "confidence": 1,
+          "reason": "Line total equals quantity times unit price."
+        }
+      ]
+    },
+    {
+      "lineId": "L2",
+      "matchedSku": "SKU-1187",
+      "matchMethod": "semantic",
+      "matchScore": 0.91,
+      "resolution": "pending",
+      "flags": [
+        {
+          "field": "description",
+          "documentValue": "Sea Salt Flakes 250g",
+          "standardValue": "Sea salt flakes, 250g",
+          "status": "mismatch",
+          "confidence": 0.91,
+          "reason": "Matched by meaning rather than by name. Confirm it is the same product before this becomes an alias."
+        },
+        {
+          "field": "unitPrice",
+          "documentValue": 6.2,
+          "standardValue": 6.2,
+          "status": "match",
+          "confidence": 1,
+          "reason": "Unit price agrees."
+        }
+      ]
+    },
+    {
+      "lineId": "L3",
+      "matchedSku": "SKU-5520",
+      "matchMethod": "exact",
+      "matchScore": 1,
+      "resolution": "pending",
+      "flags": [
+        {
+          "field": "lineTotal",
+          "documentValue": 172,
+          "standardValue": 168,
+          "status": "mismatch",
+          "confidence": 1,
+          "reason": "12 x 14.00 is 168.00. The invoice says 172.00, a 4.00 arithmetic error."
+        },
+        {
+          "field": "unitPrice",
+          "documentValue": 14,
+          "standardValue": 14,
+          "status": "match",
+          "confidence": 1,
+          "reason": "Unit price agrees."
+        }
+      ]
+    },
+    {
+      "lineId": "L4",
+      "matchedSku": null,
+      "matchMethod": "none",
+      "matchScore": 0,
+      "resolution": "pending",
+      "flags": [
+        {
+          "field": "sku",
+          "documentValue": null,
+          "standardValue": null,
+          "status": "unmatched",
+          "confidence": 0,
+          "reason": "No SKU on the line, no alias, and no semantic match above 0.82. Nothing in the standard corresponds to this."
+        },
+        {
+          "field": "description",
+          "documentValue": "Bamboo brush, refill head",
+          "standardValue": null,
+          "status": "unmatched",
+          "confidence": 0,
+          "reason": "Unrecognised product. Assign a SKU to teach the standard, or leave it for a buyer to look at."
+        }
+      ]
+    },
+    {
+      "lineId": "L5",
+      "matchedSku": "SKU-8890",
+      "matchMethod": "alias",
+      "matchScore": 0.95,
+      "resolution": "pending",
+      "flags": [
+        {
+          "field": "description",
+          "documentValue": "Glass storage jar 1L",
+          "standardValue": "Glass storage jar, 1L",
+          "status": "match",
+          "confidence": 0.95,
+          "reason": "Matched on a previously learned alias."
+        },
+        {
+          "field": "unitPrice",
+          "documentValue": 9.75,
+          "standardValue": 9.75,
+          "status": "match",
+          "confidence": 1,
+          "reason": "Unit price agrees."
+        },
+        {
+          "field": "uom",
+          "documentValue": "EA",
+          "standardValue": "EA",
+          "status": "match",
+          "confidence": 1,
+          "reason": "Unit of measure agrees."
+        }
+      ]
+    }
+  ]
+}
