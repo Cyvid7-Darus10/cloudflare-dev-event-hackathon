@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { runIngest } from "./ingest";
-import type { IngestDeps } from "./ingest";
+import { runIngest } from "./pipeline";
+import type { IngestDeps } from "./pipeline";
 import invoiceA from "../../fixtures/invoice-a.json";
-import { parseExtractedInvoice } from "../ingest/schema";
+import { parseExtractedInvoice } from "./schema";
 
 /**
  * The ingest pipeline as ordered steps.

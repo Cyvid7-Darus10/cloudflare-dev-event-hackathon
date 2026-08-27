@@ -22,7 +22,6 @@ export interface IngestParams {
 export interface UploadEnv {
   DOCS: R2Bucket;
   DB: D1Database;
-  INGEST: { create(options: { id: string; params: IngestParams }): Promise<{ id: string }> };
 }
 
 const DEMO_DOC_ID = "demo-invoice-a";
@@ -31,7 +30,22 @@ function badRequest(message: string): Response {
   return Response.json({ error: message }, { status: 400 });
 }
 
-export async function handleUpload(request: Request, env: UploadEnv): Promise<Response> {
+/**
+ * Starting the ingesting agent is a seam.
+ *
+ * `src/index.ts` wires this to `getAgentByName`. Passing it in keeps this
+ * handler testable without a Durable Object, which cannot boot locally while
+ * the AI binding needs an account.
+ */
+export interface UploadDeps {
+  startIngest(sessionId: string, params: IngestParams): Promise<void>;
+}
+
+export async function handleUpload(
+  request: Request,
+  env: UploadEnv,
+  deps: UploadDeps,
+): Promise<Response> {
   const demo = new URL(request.url).searchParams.get("demo") === "1";
   const sessionId = crypto.randomUUID();
 
@@ -47,7 +61,7 @@ export async function handleUpload(request: Request, env: UploadEnv): Promise<Re
       demo: true,
     };
     await recordDocument(env, params);
-    await env.INGEST.create({ id: sessionId, params });
+    await deps.startIngest(sessionId, params);
     return Response.json({ sessionId }, { status: 202 });
   }
 
@@ -97,7 +111,7 @@ export async function handleUpload(request: Request, env: UploadEnv): Promise<Re
 
   // The session is the Workflow instance id, so a stuck run is traceable from
   // the id the UI is already holding.
-  await env.INGEST.create({ id: sessionId, params });
+  await deps.startIngest(sessionId, params);
 
   return Response.json({ sessionId }, { status: 202 });
 }

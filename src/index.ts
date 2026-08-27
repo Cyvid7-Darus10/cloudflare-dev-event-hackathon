@@ -6,6 +6,7 @@
  * is routed here; everything else is `env.ASSETS`.
  */
 
+import { getAgentByName, routeAgentRequest } from "agents";
 import { handleUpload, type IngestParams } from "./ingest/upload";
 import { handleAudit, handleSessions, handleStandard } from "./api/sessions.ts";
 import {
@@ -20,7 +21,7 @@ import {
   withSecurity,
 } from "./platform/safety.ts";
 
-export { IngestWorkflow } from "./workflows/ingest";
+export { IngestAgent } from "./ingest/agent";
 export { ReviewSessionDO } from "./session/ReviewSession.ts";
 
 const SERVICE = "rectify";
@@ -43,7 +44,7 @@ const health = (env: Env): Response =>
       PRODUCTS: Boolean(env.PRODUCTS),
       AI: Boolean(env.AI),
       BROWSER: Boolean(env.BROWSER),
-      INGEST: Boolean(env.INGEST),
+      IngestAgent: Boolean(env.IngestAgent),
       INGEST_QUEUE: Boolean(env.INGEST_QUEUE),
       REVIEW_SESSION: Boolean(env.REVIEW_SESSION),
       ASSETS: Boolean(env.ASSETS),
@@ -91,13 +92,25 @@ async function gate(
   return null;
 }
 
-async function route(request: Request, env: Env, pathname: string): Promise<Response> {
+async function route(
+  request: Request,
+  env: Env,
+  pathname: string,
+  ctx: ExecutionContext,
+): Promise<Response> {
   if (pathname === "/api/health") return health(env);
   if (pathname === "/api/standard") return handleStandard(env);
   if (pathname === "/api/audit") return handleAudit(env, new URL(request.url));
 
   if (pathname === "/api/documents" && request.method === "POST") {
-    return handleUpload(request, env);
+    return handleUpload(request, env, {
+      async startIngest(sessionId, params) {
+        const agent = await getAgentByName(env.IngestAgent, sessionId);
+        // Deliberately not awaited: extraction takes as long as the model
+        // takes, and the upload response must not wait for it.
+        ctx.waitUntil(agent.ingest(params));
+      },
+    });
   }
 
   const session = await handleSessions(request, env, pathname);
@@ -107,14 +120,26 @@ async function route(request: Request, env: Env, pathname: string): Promise<Resp
 }
 
 export default {
-  async fetch(request, env): Promise<Response> {
+  async fetch(request, env, ctx): Promise<Response> {
     const { pathname } = new URL(request.url);
 
     try {
       if (pathname.startsWith("/api/")) {
         const blocked = await gate(request, env, pathname);
         if (blocked) return withSecurity(request, blocked);
-        return withSecurity(request, await route(request, env, pathname));
+        return withSecurity(request, await route(request, env, pathname, ctx));
+      }
+
+      /*
+       * The ingesting agent's own routes: state sync and the WebSocket the
+       * board follows extraction on. These live under /agents/, not /api/, so
+       * they have to be handled before the request falls through to assets.
+       *
+       * Returned unchanged — wrapping the response breaks the WebSocket.
+       */
+      if (pathname.startsWith("/agents/")) {
+        const agentResponse = await routeAgentRequest(request, env);
+        if (agentResponse) return agentResponse;
       }
 
       return withSecurity(request, await env.ASSETS.fetch(request));
@@ -133,7 +158,8 @@ export default {
       }
       const params: IngestParams = message.body;
       try {
-        await env.INGEST.create({ id: params.sessionId, params });
+        const agent = await getAgentByName(env.IngestAgent, params.sessionId);
+        await agent.ingest(params);
         message.ack();
       } catch (cause) {
         console.error(`${SERVICE}: queue ingest failed`, message.id, cause);

@@ -1,26 +1,52 @@
 # Workstream B — Ingest and extract
 
-**Bryan.** Supplier invoice in, `ExtractedInvoice` out.
+**Bryan.** Supplier invoice in, `ExtractedInvoice` out, run by an agent.
 
 ```bash
 npm install
-npm test          # 49 tests, inside workerd
+npm test          # 74 tests, inside workerd
 npm run typecheck
 npx wrangler dev  # needs CLOUDFLARE_API_TOKEN: the AI binding is remote even locally
 ```
 
-## What is here
+## The shape of it
+
+`POST /api/documents` puts the bytes in R2, records a `documents` row, and
+starts an **ingesting agent** — one Durable Object per document, named by the
+session id. The upload answers with a `sessionId` immediately; the agent does
+the slow part and publishes its progress while it works.
+
+```
+POST /api/documents ──> R2 + documents row ──> IngestAgent (one per document)
+                                                  │  status: extracting
+                                                  │  1. toMarkdown        (retried)
+                                                  │  2. extract           (retried, JSON mode)
+                                                  │  3. match             ← Michelle's seam
+                                                  │  4. seed ReviewSession   Zuriel's DO
+                                                  ▼  status: ready | failed
+                                          GET /agents/ingest-agent/:sessionId
+                                          WS  (state sync, live board)
+```
 
 | File | Does |
 |---|---|
-| `hash.ts` | `docId` = SHA-256 of the uploaded bytes, and the R2 key |
+| `agent.ts` | The agent: state, transitions, retries, and the bindings it runs on |
+| `pipeline.ts` | `runIngest` — what happens to a document, in order |
+| `extract.ts` | `toMarkdown` → JSON-mode extraction, one repair retry |
 | `schema.ts` | The contract as zod, and the gate that rejects what does not fit |
-| `extract.ts` | `toMarkdown` → JSON-mode extraction, with one repair retry |
-| `upload.ts` | `POST /api/documents` — R2 put, `documents` row, Workflow start |
-| `../workflows/ingest.ts` | The durable steps, and `runIngest` which holds the ordering |
+| `upload.ts` | `POST /api/documents` — R2 put, `documents` row, agent start |
+| `hash.ts` | `docId` = SHA-256 of the uploaded bytes, and the R2 key |
 
-`src/index.ts` and `wrangler.jsonc` are Siva's; this workstream adds one route
-and the `AI` / `DOCS` / `DB` / `INGEST` bindings to them.
+## Why an agent and not a Workflow
+
+The state is the product. The board opens before extraction finishes and reads
+the agent to tell a slow model from a dead one, rather than polling something
+else.
+
+The trade is durability: a Workflow resumes a failed step after an eviction,
+and an agent does not. `withRetry` keeps the behaviour that matters for a
+two-minute demo — three attempts with exponential backoff on each model call —
+but a mid-run eviction starts over rather than resuming.
 
 ## Three decisions worth keeping
 

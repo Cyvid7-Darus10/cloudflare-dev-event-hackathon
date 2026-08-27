@@ -58,14 +58,16 @@
       "simple": { "limit": 30, "period": 60 }
     }
   ],
-  "workflows": [
-    { "binding": "INGEST", "name": "ingest", "class_name": "IngestWorkflow" }
-  ],
 
   "durable_objects": {
-    "bindings": [{ "name": "REVIEW_SESSION", "class_name": "ReviewSessionDO" }]
+    "bindings": [
+      { "name": "REVIEW_SESSION", "class_name": "ReviewSessionDO" },
+      { "name": "IngestAgent", "class_name": "IngestAgent" }
+    ]
   },
   "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["ReviewSessionDO"] }
+    { "tag": "v1", "new_sqlite_classes": ["ReviewSessionDO"] },
+    // v1 is shipped. The agent gets its own tag — never edit a shipped one.
+    { "tag": "v2", "new_sqlite_classes": ["IngestAgent"] }
   ]
 }
