@@ -179,6 +179,11 @@ check("publish serves HTML", publishHtml?.headers.get("content-type"), "text/htm
 check("publish is never cached", publishHtml?.headers.get("cache-control"), "no-store");
 const html = await publishHtml!.text();
 check("live publish carries no sample banner", html.includes("Sample data"), false);
+check("the page offers a PDF download", html.includes("format=pdf"), true);
+
+const pdfFallback = await call(`/api/sessions/${id}/publish?format=pdf`);
+check("pdf without Browser Run falls back to HTML", pdfFallback?.headers.get("content-type"), "text/html; charset=utf-8");
+check("the fallback is marked, not silent", pdfFallback?.headers.get("x-pdf-status"), "unavailable");
 
 console.log(`\n${failures === 0 ? "all checks passed" : `${failures} FAILED`}\n`);
 process.exit(failures === 0 ? 0 : 1);

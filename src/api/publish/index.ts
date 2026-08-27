@@ -15,6 +15,8 @@ export type PublishOptions = {
   sourceNote?: string;
   /** Injected so the caller controls the clock and tests stay deterministic. */
   now?: Date;
+  /** Same-origin href for the PDF download chip. */
+  pdfHref?: string;
 };
 
 export type PublishResult = {
@@ -65,6 +67,7 @@ export async function publishInvoice(
     contentHash: hash,
     dataSource: options.dataSource,
     sourceNote: options.sourceNote,
+    pdfHref: options.pdfHref,
   });
   return { html, hash, doc };
 }

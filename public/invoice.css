@@ -156,6 +156,8 @@ body {
 .chip code { font-family: var(--mono); color: var(--ink-2); }
 .chip.fixture { border-color: var(--open-edge); background: var(--open-soft); }
 .chip.fixture code { color: var(--open); }
+a.chip { color: inherit; text-decoration: none; }
+a.chip:hover { border-color: var(--edge); color: var(--ink); }
 
 /* ---- headline figures ---- */
 
@@ -374,6 +376,7 @@ table.corr { border-collapse: collapse; width: 100%; min-width: 640px; font-size
   table.lines, table.corr { min-width: 0; }
   .raw { display: none; }           /* extraction internals are not for the supplier */
   .chip { background: none; }
+  a.chip { display: none; }
   /* The sample warning MUST survive printing: it is the reason not to send this. */
   .sample { background: none; border-block-end: 1px solid var(--ink-4); }
   a { color: inherit; text-decoration: none; }

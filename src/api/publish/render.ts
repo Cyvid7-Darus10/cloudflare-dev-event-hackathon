@@ -28,6 +28,8 @@ export type RenderMeta = {
   dataSource: "live" | "fixture";
   /** Why we are on the fixture, when we are. */
   sourceNote?: string;
+  /** Same-origin link to the PDF. Omitted on local preview, where that route does not exist. */
+  pdfHref?: string;
 };
 
 /** The only interpolation primitive in this file. */
@@ -273,6 +275,11 @@ ${banner}
     <span class="chip${isFixture ? " fixture" : ""}"><b>Source</b><code>${
       isFixture ? "fixture" : "live session"
     }</code></span>
+    ${
+      meta.pdfHref
+        ? `<a class="chip" href="${esc(meta.pdfHref)}"><b>File</b><code>Download PDF</code></a>`
+        : ""
+    }
   </div>
 
   ${empty || headline(doc)}

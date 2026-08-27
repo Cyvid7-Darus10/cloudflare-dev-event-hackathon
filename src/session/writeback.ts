@@ -71,6 +71,8 @@ export async function recordResolution(
     persisted: false,
   };
 
+  if (!env.DB) return row;
+
   await applyWriteBack(env, { ...event, actor: row.actor });
   row.persisted = true;
 

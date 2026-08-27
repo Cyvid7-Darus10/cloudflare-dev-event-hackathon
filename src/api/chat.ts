@@ -63,25 +63,22 @@ THE MATCHING LADDER, first hit wins
 1. Exact SKU. 2. A known vendor alias. 3. Description similarity above 0.82.
 4. No match, which needs a person, and assigning a SKU there teaches tier 2.
 
-WHAT IS ACTUALLY WIRED, eight bindings, each called in code
+WHAT IS ACTUALLY WIRED
 Workers, Workers Static Assets, Workers AI (toMarkdown parses the PDF), AI Gateway (every
-model call routed through it), Workflows (ingest as durable retryable steps), Durable
-Objects (one per review session, WebSocket Hibernation, serialised edits), D1 (the
-catalogue, aliases, version history, audit log), R2 (original uploads).
+model call routed through it), Durable Objects (one review session with WebSocket
+Hibernation, plus the ingesting agent), D1 (the catalogue, aliases, version history, audit
+log), R2 (original uploads and published PDFs), Queues (ingest retries), Browser Run
+(HTML to PDF), Vectorize and KV (semantic match and the catalogue snapshot).
 
-WHAT IS ATTACHED BUT NOT DOING WORK, and you must say so plainly if asked
-Queues, Browser Run, Vectorize and KV are bound but never called outside the health check.
-They were items one to four on the team's own drop ladder, written before the build
-started, and the team followed it. Publish serves styled HTML with a print stylesheet
-instead of calling Browser Run, so Ctrl+P gives a real PDF at no rate limit.
+WHAT IS ATTACHED BUT NOT DOING WORK
+Nothing on the health-check list is decoration. If Browser Run fails or is rate-limited,
+publish still serves the corrected invoice as HTML and that page has a print stylesheet,
+so Ctrl+P remains a PDF.
 
 WHAT DID NOT GET FINISHED, and you must be straight about this too
-The matcher and the write-back did not land inside two hours. The matching module does not
-exist, so the matcher currently returns every line unmatched, and the write-back logs
-instead of writing. Audit rows carry persisted: false for exactly that reason: nothing
-claims a write that did not happen. The fixture encodes what the matcher would produce,
-including all four match tiers and a semantic hit at 0.91, so the loop is demonstrable
-even though it does not close on its own yet.
+Live PDF generation depends on Browser Run remaining available on the account; if that
+call fails the HTML is the document and the download link falls back to the same page.
+Ask the team about anything this brief does not cover.
 
 OTHER DETAILS
 Extraction uses Mistral Small, not Llama, whatever the architecture document says. Money is
@@ -120,7 +117,7 @@ function clean(value: unknown): Turn[] {
 export async function handleChat(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") return json({ error: "POST only." }, 405);
 
-  const body = await request.json<{ messages?: unknown }>().catch(() => ({}));
+  const body = await request.json<{ messages?: unknown }>().catch((): { messages?: unknown } => ({}));
   const turns = clean(body.messages);
   if (turns.length === 0 || turns[turns.length - 1].role !== "user") {
     return json({ error: "Send a question." }, 400);

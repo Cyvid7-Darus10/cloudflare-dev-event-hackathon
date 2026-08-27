@@ -7,10 +7,11 @@
  * Michelle. This file holds no business rules of its own on purpose.
  */
 
-import { listStandard } from "../platform/catalogue.ts";
+import { listAudit, listStandard } from "../platform/catalogue.ts";
 import type { LineReview, ReviewSession } from "../shared/contracts.ts";
 import type { ReviewSessionDO } from "../session/ReviewSession.ts";
 import { publishInvoice } from "./publish/index.ts";
+import { getOrCreatePublishedPdf, pdfFilename } from "./publish/pdf.ts";
 import fixture from "../../fixtures/session-a.json" with { type: "json" };
 
 /** One line's decision, as the flag board sends it at publish time. */
@@ -49,6 +50,7 @@ export async function handleSessions(
   request: Request,
   env: Env,
   pathname: string,
+  ctx?: ExecutionContext,
 ): Promise<Response | null> {
   const match = pathname.match(/^\/api\/sessions\/([^/]+)(\/[^/]+)?$/);
   if (!match) return null;
@@ -92,11 +94,14 @@ export async function handleSessions(
       session = (await stub.getSession()) ?? session;
     }
 
-    const { html, hash, doc } = await publishInvoice(session, { dataSource: "live" });
+    const origin = new URL(request.url).origin;
+    const pdfHref = `${origin}/api/sessions/${encodeURIComponent(id)}/publish?format=pdf`;
+    const { html, hash, doc } = await publishInvoice(session, { dataSource: "live", pdfHref });
+    const format = new URL(request.url).searchParams.get("format");
 
     // `?format=json` so the verification script can assert on the numbers
     // rather than grepping HTML.
-    if (new URL(request.url).searchParams.get("format") === "json") {
+    if (format === "json") {
       return json({
         invoiceNumber: doc.invoiceNumber,
         contentHash: hash,
@@ -104,7 +109,34 @@ export async function handleSessions(
         originalTotal: doc.originalTotal,
         changedLineCount: doc.changedLineCount,
         unresolvedCount: doc.unresolvedCount,
+        pdfUrl: `/api/sessions/${encodeURIComponent(id)}/publish?format=pdf`,
       });
+    }
+
+    const renderPdf = () =>
+      getOrCreatePublishedPdf(env, { sessionId: id, hash, html, origin });
+
+    if (format === "pdf") {
+      const stored = await renderPdf();
+      if (stored) {
+        return new Response(stored.bytes, {
+          headers: {
+            "content-type": "application/pdf",
+            "content-disposition": `attachment; filename="${pdfFilename(doc.invoiceNumber)}"`,
+            "cache-control": "no-store",
+            "x-content-hash": hash,
+            "x-r2-key": stored.key,
+          },
+        });
+      }
+    } else if (ctx && request.method === "POST") {
+      // HTML is the page. The PDF is the file. Do not make the reviewer wait
+      // on Browser Run to see the invoice; drop it in R2 behind the response.
+      ctx.waitUntil(
+        renderPdf().then((stored) => {
+          if (!stored) console.error("rectify: published pdf unavailable", id);
+        }),
+      );
     }
 
     return new Response(html, {
@@ -114,6 +146,7 @@ export async function handleSessions(
         // A cached page here shows an unchanged document and reads as broken.
         "cache-control": "no-store",
         "x-content-hash": hash,
+        ...(format === "pdf" ? { "x-pdf-status": "unavailable" } : {}),
       },
     });
   }
@@ -148,20 +181,47 @@ export async function handleSessions(
 /**
  * The audit trail.
  *
- * Michelle's write-back owns the `standard_versions` table. D1 is not bound yet,
- * so this reads what the session object recorded and says so rather than
- * presenting it as the catalogue's own history.
+ * Michelle's write-back owns `standard_versions`. That is the catalogue's
+ * history; the Durable Object only keeps a local copy so a session can still
+ * answer when D1 is unbound.
  */
 export async function handleAudit(env: Env, url: URL): Promise<Response> {
-  const id = url.searchParams.get("session") ?? (fixture as ReviewSession).sessionId;
+  const session = url.searchParams.get("session");
+  const db = env.DB;
+  if (db) {
+    const raw = await listAudit(db, 100);
+    const mapped = raw.map((row) => fromCatalogueRow(row as Record<string, unknown>));
+    const rows = session ? mapped.filter((row) => row.sessionId === session) : mapped;
+    return json({
+      source: "d1",
+      session,
+      rows,
+      count: rows.length,
+    });
+  }
+
+  const id = session ?? (fixture as ReviewSession).sessionId;
   const rows = await stubFor(env, id).getAudit();
   return json({
     source: "durable-object",
-    note: "D1 is not bound yet. These are the rows the session recorded; "
-      + "the catalogue's own history arrives with Michelle's write-back.",
+    note: "D1 is not bound, so these are the rows the session recorded.",
     session: id,
     rows,
+    count: rows.length,
   });
+}
+
+function fromCatalogueRow(row: Record<string, unknown>) {
+  return {
+    id: row.id ?? null,
+    sku: (row.sku as string | null) ?? null,
+    field: String(row.field ?? ""),
+    oldValue: (row.old_value as string | null) ?? null,
+    newValue: (row.new_value as string | null) ?? null,
+    sessionId: (row.session_id as string | null) ?? null,
+    actor: String(row.actor ?? ""),
+    createdAt: Number(row.created_at ?? 0),
+  };
 }
 
 export async function handleStandard(env: Env): Promise<Response> {

@@ -115,7 +115,7 @@ async function route(
     });
   }
 
-  const session = await handleSessions(request, env, pathname);
+  const session = await handleSessions(request, env, pathname, ctx);
   if (session) return session;
 
   return json({ error: `No route for ${request.method} ${pathname}` }, 404);

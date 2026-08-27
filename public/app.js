@@ -61,6 +61,8 @@ const state = {
   publishedOk: false,
   /** Figures read back after publishing, so the receipt can say what changed. */
   receipt: null,
+  /** Catalogue history from `GET /api/audit`, when the Standard tab has asked. */
+  audit: null,
   /** `{ lineId, message }` when a save was refused, shown inside that editor. */
   editError: null,
   /**
@@ -429,6 +431,18 @@ const resolutionLabel = (res) =>
 
 function standard(s) {
   const learned = s.lines.filter((l) => l.resolution === "accept_document" || l.resolution === "edited");
+  const apiRows = state.audit?.rows ?? [];
+  const fromApi = apiRows.length > 0;
+  const empty = fromApi
+    ? false
+    : learned.length === 0;
+  const body = fromApi
+    ? apiRows.map(catalogueAuditRow).join("")
+    : learned.flatMap((r) => auditRows(s, r)).join("");
+  const source = fromApi
+    ? `From <code>GET /api/audit</code> (${esc(state.audit.source)}), including who made each change and when.`
+    : `Rows below are this page's decisions. Catalogue history arrives from <code>GET /api/audit</code> after a write-back.`;
+
   return `
     <div class="panel">
       <h2>What this document taught the standard</h2>
@@ -438,22 +452,44 @@ function standard(s) {
         next invoice from this vendor matches without asking.
       </p>
       ${
-        learned.length === 0
+        empty
           ? `<p class="empty">Nothing yet. Resolve a line with “Update the standard” and it appears here.</p>`
           : `<div class="tw"><table>
-              <thead><tr><th>SKU</th><th>Field</th><th>Was</th><th>Now</th><th>Learned from</th></tr></thead>
-              <tbody>${learned.flatMap((r) => auditRows(s, r)).join("")}</tbody>
+              <thead><tr><th>SKU</th><th>Field</th><th>Was</th><th>Now</th><th>${fromApi ? "When" : "Learned from"}</th></tr></thead>
+              <tbody>${body}</tbody>
             </table></div>`
       }
     </div>
     <div class="panel">
-      <h2>Not wired up yet</h2>
-      <p>
-        These rows are derived from decisions held in this page. At integration they come
-        from <code>GET /api/audit</code> and include who made each change and when.
-      </p>
+      <p>${source}</p>
     </div>
   `;
+}
+
+function catalogueAuditRow(row) {
+  const cell = (v) => (v === null || v === undefined || v === "" ? "—" : esc(String(v)));
+  const when = row.createdAt
+    ? new Date(row.createdAt).toLocaleString("en-SG", { dateStyle: "medium", timeStyle: "short" })
+    : "";
+  return `<tr>
+        <td class="n">${cell(row.sku)}</td>
+        <td>${cell(row.field)}</td>
+        <td>${cell(row.oldValue)}</td>
+        <td class="n">${cell(row.newValue)}</td>
+        <td>${esc(when)}${row.actor ? ` · ${esc(row.actor)}` : ""}</td>
+      </tr>`;
+}
+
+async function loadAudit() {
+  const id = state.session?.sessionId;
+  const q = id ? `?session=${encodeURIComponent(id)}` : "";
+  try {
+    const res = await fetch(`/api/audit${q}`);
+    state.audit = res.ok ? await res.json() : { source: "error", rows: [] };
+  } catch {
+    state.audit = { source: "error", rows: [] };
+  }
+  if (state.tab === "standard") render();
 }
 
 function auditRows(s, r) {
@@ -526,6 +562,7 @@ function confirmSheet(s) {
           state.publishedOk
             ? `<a class="act act--primary" href="/api/sessions/${encodeURIComponent(s.sessionId)}/publish"
                   target="_blank" rel="noopener">Open the corrected invoice</a>
+               <a class="act" href="/api/sessions/${encodeURIComponent(s.sessionId)}/publish?format=pdf">Download PDF</a>
                <button class="act" id="confirm-back">Back to the board</button>`
             : `<button class="act act--primary" id="confirm-publish" ${state.publishing ? "disabled" : ""}>
                  ${state.publishing ? "Publishing…" : "Publish and write back"}
@@ -1287,6 +1324,7 @@ document.getElementById("tab-board").addEventListener("click", () => {
 });
 document.getElementById("tab-standard").addEventListener("click", () => {
   state.tab = "standard";
+  loadAudit();
   syncTabs();
 });
 
