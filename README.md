@@ -8,9 +8,9 @@ My team's project for **Cloudflare Singapore Developers Day**, 27 August 2026.
 
 ## The trailer
 
-Thirty seconds, for pitching.
+Thirty seconds, for pitching. Click through to play:
 
-https://github.com/Cyvid7-Darus10/cloudflare-dev-event-hackathon/raw/main/public/trailer.mp4
+[![Rectify — the 30-second trailer](public/trailer-poster.jpg)](https://github.com/Cyvid7-Darus10/cloudflare-dev-event-hackathon/raw/main/public/trailer.mp4)
 
 It also streams from the deployed Worker, which is the link to use in a room with
 patchy wifi and a browser already open:
@@ -42,6 +42,38 @@ system learned.
 The model reads and compares. It does not decide. Only a human resolution
 changes the standard.
 
+## Run it locally
+
+You need Node 22+ ([`mise.toml`](mise.toml) pins it — Wrangler 4 refuses to
+run on anything older) and npm.
+
+```bash
+npm install
+npm run migrate:local
+npx wrangler dev -c wrangler.local.jsonc
+```
+
+[`wrangler.local.jsonc`](wrangler.local.jsonc) runs everything in Miniflare
+with no Cloudflare login. That covers the whole session flow — upload, review,
+publish. Real document extraction uses Workers AI, Browser Rendering, and
+Vectorize, which have no local simulator; for those, `wrangler login` first and
+then `npm run dev` (which uses `wrangler.jsonc`).
+
+No backend at all? Open the UI with `?demo=1` and every API call is answered
+from fixtures. [`public/README.md`](public/README.md) explains how.
+
+## Tests
+
+```bash
+npm test                     # unit + integration, in the Workers runtime
+node scripts/demo-e2e.mjs    # headless-browser walk of the fixture-backed demo flow
+node scripts/real-e2e.mjs    # same walk against the real backend
+```
+
+The two e2e scripts expect a dev server on `http://127.0.0.1:8787` (or pass a
+base URL) and Playwright, which is not a repo dependency:
+`npm i --no-save playwright`.
+
 ## Where things are
 
 | | |
@@ -57,6 +89,17 @@ Eleven services, each load-bearing — Workers and Workers AI, AI Gateway,
 Workflows, Durable Objects, D1, R2, KV, Vectorize, Queues, and Browser
 Rendering. `architecture.md` says what each one earns its place doing.
 
+## Deploying your own
+
+[`wrangler.jsonc`](wrangler.jsonc) names our account and resource IDs. To run
+your own copy: create your own D1 database, R2 bucket, KV namespace, Vectorize
+index, and queues; swap the IDs in `wrangler.jsonc` for yours; then
+
+```bash
+npm run deploy
+npm run migrate:remote
+```
+
 ## The team
 
 Bryan, Cyrus, Michelle, Siva, Zuriel. Five people, two hours, five disjoint
@@ -64,4 +107,4 @@ directories and one frozen contract.
 
 ## Licence
 
-MIT
+[MIT](LICENSE).
