@@ -1,58 +1,50 @@
-# Cloudflare Dev Event Hackathon
+# Rectify
 
-My hackathon project for **Cloudflare Singapore Developers Day**, 27 August 2026.
+Invoice reconciliation against a standard that learns.
 
-Built with Cloudflare Workers, Durable Objects, and Workers AI.
+My team's project for **Cloudflare Singapore Developers Day**, 27 August 2026.
 
 ## The idea
 
-Customers send us their product information in their own documents, in their own
-shape. We keep a standard to check it against. Reconciling the two is manual,
-slow, and easy to get wrong.
+A supplier sends an invoice as a PDF. Somebody opens it next to a price list and
+checks it line by line — is that the right SKU, is that the contracted price, is
+that the right unit of measure. It is slow, it is error-prone, and the knowledge
+gained ("this vendor calls SKU-4471 a *Widget Pro 2K*") evaporates the moment the
+check is done.
 
-This automates the comparison and keeps a person in charge of the decisions.
+Upload an invoice. It is parsed to structured JSON, every line is matched against
+a canonical product standard, and every field difference is flagged. A reviewer
+accepts, rejects, or edits each flag in a live UI. Accepting a correction
+**writes back into the standard** — the corrected price, and the vendor's odd
+product name recorded as an alias. Then a clean, corrected invoice is published
+as a PDF.
 
-### The flow
+The payoff: the standard gets smarter with every document. Invoice #1 needs
+manual decisions. Invoice #2 from the same vendor auto-matches, because the
+system learned.
 
-1. **A customer sends a company document.** Their format, their field names,
-   their wording.
-2. **Parse it into JSON.** One predictable shape, whatever arrived.
-3. **Match it against the standard** and compare product details field by field.
-4. **Flag the differences.** Everything that matches passes through. Everything
-   that does not gets raised for review, with both values shown side by side.
-5. **A person reviews the flags** in the UI. Accept what the customer sent,
-   keep what the standard says, or type a correction.
-6. **The accepted values update the standard**, so the same disagreement does
-   not come back next time.
-7. **Emit a document** carrying the product information as the updated standard
-   now defines it.
+The model reads and compares. It does not decide. Only a human resolution
+changes the standard.
 
-The model reads and compares. It does not decide. A person accepts, edits or
-rejects each flag, and only accepted values change the standard.
+## Where things are
 
-### Why Cloudflare
-
-The standard is shared state that several people edit while documents are being
-processed against it. That is the hard part, and it is what the platform is for.
-
-| Need | Handled by |
+| | |
 |---|---|
-| Extract and compare fields across two shapes | Workers AI |
-| One writer for the standard, so two reviewers cannot overwrite each other | Durable Objects |
-| A record of who accepted what, and when | SQLite inside the object |
-| Reprocessing the same document changes nothing | An idempotency key per document |
-| Documents in and out | R2 |
+| [`architecture.md`](architecture.md) | The design. Services, contract, timeline, drop ladder. **Start here.** |
+| [`plan/`](plan/README.md) | The working split — one file per person |
+| [`src/shared/contracts.ts`](src/shared/contracts.ts) | The frozen contract every workstream codes against |
+| [`fixtures/`](fixtures/) | The canonical fixtures, so nobody waits on anybody |
+
+## Why Cloudflare
+
+Eleven services, each load-bearing — Workers and Workers AI, AI Gateway,
+Workflows, Durable Objects, D1, R2, KV, Vectorize, Queues, and Browser
+Rendering. `architecture.md` says what each one earns its place doing.
 
 ## The team
 
-Bryan, Cyrus, Michelle, Siva, Zuriel.
-
-Work is split five ways in [`plan/`](plan/README.md), with a shared contract the
-five workstreams build against so nobody waits on anybody.
-
-## Status
-
-Starting point. Code to follow.
+Bryan, Cyrus, Michelle, Siva, Zuriel. Five people, two hours, five disjoint
+directories and one frozen contract.
 
 ## Licence
 
