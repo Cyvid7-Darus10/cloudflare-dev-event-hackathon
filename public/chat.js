@@ -1,12 +1,17 @@
 /**
  * Ask Rectify: the chat widget.
  *
- * Self-contained on purpose. It injects its own styles and markup so the only
- * change to Cyrus's page is one script tag, and nothing here can collide with
- * the flag board's own state.
+ * Self-contained on purpose. It builds its own markup, so the only change to
+ * Cyrus's page is a stylesheet link and a script tag, and nothing here can
+ * collide with the flag board's own state.
  *
  * It uses the board's tokens from styles.css rather than its own palette, and
  * it sits above the fixed publish bar so it can never cover the CTA.
+ *
+ * Styles live in chat.css and are linked from the page. They cannot be
+ * injected from here: this site sends `style-src 'self'` with no
+ * 'unsafe-inline', so an injected stylesheet is dropped and the widget
+ * renders with no rules at all.
  */
 (function () {
   "use strict";
@@ -19,54 +24,6 @@
     "Which Cloudflare services does it use?",
     "What is not finished yet?"
   ];
-
-  var css = [
-    ".ask{position:fixed;right:16px;bottom:120px;z-index:40;font-family:var(--ui)}",
-    "@media(max-width:660px){.ask{right:10px;bottom:112px;left:10px}}",
-    ".ask__b{width:46px;height:46px;border-radius:999px;border:1px solid var(--edge);",
-    "background:var(--doc);color:#1d1d1d;cursor:pointer;display:flex;align-items:center;",
-    "justify-content:center;margin-left:auto;font:inherit;font-size:12px;font-weight:600;",
-    "letter-spacing:.02em}",
-    ".ask__b:hover{background:#e0741a}",
-    ".ask__p{display:none;flex-direction:column;width:min(360px,calc(100vw - 24px));",
-    "height:min(460px,calc(100vh - 200px));background:var(--paper);border:1px solid var(--rule);",
-    "border-radius:var(--r-lg);overflow:hidden;margin-bottom:10px}",
-    ".ask.on .ask__p{display:flex}",
-    ".ask__h{display:flex;align-items:baseline;gap:8px;padding:10px 14px;",
-    "border-bottom:1px solid var(--rule);background:var(--paper-2)}",
-    ".ask__h b{font-size:13.5px;font-weight:600}",
-    ".ask__h span{font-family:var(--mono);font-size:11px;color:var(--ink-3)}",
-    ".ask__x{margin-left:auto;background:none;border:0;cursor:pointer;color:var(--ink-3);",
-    "font:inherit;font-size:16px;line-height:1;padding:0 2px}",
-    ".ask__x:hover{color:var(--ink)}",
-    ".ask__log{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}",
-    ".ask__m{font-size:13.5px;line-height:1.5;max-width:92%;white-space:pre-wrap;",
-    "overflow-wrap:anywhere}",
-    ".ask__m--u{align-self:flex-end;background:var(--doc-soft);border:1px solid var(--doc-edge);",
-    "color:var(--ink);border-radius:var(--r-md);padding:7px 10px}",
-    ".ask__m--a{align-self:flex-start;color:var(--ink-2)}",
-    ".ask__m--e{align-self:flex-start;color:var(--lost)}",
-    ".ask__hint{font-size:12.5px;color:var(--ink-3);line-height:1.5}",
-    ".ask__s{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}",
-    ".ask__s button{font:inherit;font-size:12px;cursor:pointer;text-align:left;",
-    "background:var(--paper);border:1px dashed var(--edge);border-radius:999px;",
-    "padding:4px 10px;color:var(--ink-2)}",
-    ".ask__s button:hover{background:var(--paper-2);color:var(--ink)}",
-    ".ask__f{display:flex;gap:6px;padding:10px;border-top:1px solid var(--rule)}",
-    ".ask__f input{flex:1;font:inherit;font-family:var(--mono);font-size:12.5px;",
-    "padding:7px 9px;border:1px solid var(--edge);border-radius:var(--r-sm);color:var(--ink);",
-    "background:var(--paper);min-width:0}",
-    ".ask__f button{font:inherit;font-size:12.5px;cursor:pointer;padding:7px 12px;",
-    "border:1px solid var(--edge);border-radius:var(--r-sm);background:var(--paper);color:var(--ink)}",
-    ".ask__f button:hover:not(:disabled){background:var(--paper-2)}",
-    ".ask__f button:disabled,.ask__f input:disabled{opacity:.55;cursor:default}",
-    ".ask__note{padding:0 14px 10px;font-size:11px;color:var(--ink-4);font-family:var(--mono)}",
-    ".ask :focus-visible{outline:2px solid var(--doc);outline-offset:2px}"
-  ].join("");
-
-  var style = document.createElement("style");
-  style.textContent = css;
-  document.head.appendChild(style);
 
   var root = document.createElement("div");
   root.className = "ask";
