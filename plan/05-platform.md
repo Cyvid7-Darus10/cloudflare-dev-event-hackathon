@@ -1,6 +1,6 @@
 # 5. Platform and the demo
 
-**Cyrus owns this.**
+**Siva owns this.**
 
 **You own:** that it deploys, that it stays deployed, and that the demo lands.
 

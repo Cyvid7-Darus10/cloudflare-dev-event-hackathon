@@ -24,17 +24,20 @@ four of the five are guessing.
 |---|---|---|---|
 | 1 | **Bryan** — [Ingest](01-ingest.md) | Upload, storage, extraction to JSON | the contract |
 | 2 | **Michelle** — [Standard](02-standard.md) | The standard, the diff, applying edits | the contract |
-| 3 | **Siva** — [Review UI](03-review-ui.md) | The screen where flags are triaged | the contract |
+| 3 | **Cyrus** — [Review UI](03-review-ui.md) | The screen where flags are triaged | the contract |
 | 4 | **Zuriel** — [Output](04-output.md) | The document we send back | the contract |
-| 5 | **Cyrus** — [Platform](05-platform.md) | Config, deploy, verification, the demo | nothing |
+| 5 | **Siva** — [Platform](05-platform.md) | Config, deploy, verification, the demo | nothing |
 
-Cyrus takes platform because he has already hit most of the traps listed in that
-file, and because that role calls the scope cuts.
+Siva owns platform, and therefore owns the scope call.
 
-**The other four are assigned in list order, not by skill.** Swap them in the
-first five minutes if someone is closer to one of these. Owner 2 is the hardest
-and owner 3 is the most visible, so put your strongest on 2 and whoever cares
-most about how things look on 3.
+Cyrus has already hit most of the traps listed in `05-platform.md`, so the two
+of you should spend ten minutes on that file together before anyone starts.
+Everything learned the hard way is written down there, but a walkthrough is
+faster than a cold read.
+
+**Bryan, Michelle and Zuriel are assigned in list order, not by skill.** Swap in
+the first five minutes if someone is closer to one of these. Owner 2 is the
+hardest, so put your strongest there.
 
 ## Work against fixtures, not against each other
 

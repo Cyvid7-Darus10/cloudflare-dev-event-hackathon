@@ -1,6 +1,6 @@
 # 3. The review screen
 
-**Siva owns this.**
+**Cyrus owns this.**
 
 **You own:** the screen where a person triages flags. This is what gets demoed,
 so it carries the story.
