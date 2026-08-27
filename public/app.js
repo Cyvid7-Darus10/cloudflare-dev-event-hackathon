@@ -23,28 +23,8 @@ const FIXTURES = ["/fixtures/session-a.json", "./fixtures/session-a.json"];
 /** The session id in the URL, when one is being reviewed for real. */
 const sessionIdFromUrl = () => new URLSearchParams(location.search).get("session");
 
-/**
- * Where the session comes from.
- *
- * With `?session=<id>`, workstream D's API. Without one, the fixture. A live
- * session that 404s is reported rather than silently falling back, because a
- * reviewer who followed a link to a real document should not be shown someone
- * else's sample data and left to notice.
- */
-async function loadSession() {
-  const id = sessionIdFromUrl();
-  if (id) {
-    const res = await fetch(`/api/sessions/${encodeURIComponent(id)}`);
-    if (!res.ok) {
-      throw new Error(
-        res.status === 404
-          ? `No session ${id}. It may still be extracting, or the link is stale.`
-          : `The session API answered ${res.status}.`
-      );
-    }
-    return res.json();
-  }
-
+/** The sample session, tried in both layouts the page is served from. */
+async function loadFixture() {
   for (const url of FIXTURES) {
     try {
       const res = await fetch(url);
@@ -53,7 +33,9 @@ async function loadSession() {
       // Expected in one of the two layouts. Try the next.
     }
   }
-  throw new Error("Could not load a session fixture");
+  throw new Error(
+    `Could not load a session fixture. It should be at ${FIXTURES[0]} or ${FIXTURES[1]}.`
+  );
 }
 
 const state = {
@@ -67,12 +49,22 @@ const state = {
   published: null,
   /** The line the keyboard is pointed at. Triage is a queue, not a page. */
   cursor: 0,
-  /** True once a key has been used, so the hint can stop taking up room. */
-  usedKeys: false,
+  /** True when every line is resolved and the cursor has moved to publish. */
+  atEnd: false,
   /** Set when a key cannot apply here, so the stall explains itself. */
   blocked: null,
   /** True while a live session's socket is attached. */
   live: false,
+  /** True while the publish request is in flight, so it cannot double-send. */
+  publishing: false,
+  /** True once a publish succeeded: the sheet becomes a receipt, not a form. */
+  publishedOk: false,
+  /**
+   * Set while a session exists only as a 202: `{ sessionId, since, filename,
+   * trouble }`. The upload answered before extraction ran, so the page shows
+   * the pipeline's status and polls until the session lands.
+   */
+  extracting: null,
 };
 
 /* ---------- helpers ---------- */
@@ -122,6 +114,16 @@ const openLines = (s) => s.lines.filter((l) => l.resolution === "pending");
 function render() {
   const root = document.getElementById("root");
   const bar = document.getElementById("bar");
+
+  /* Extraction has no session to draw yet. The status view is the screen. */
+  if (state.extracting) {
+    root.innerHTML = extractingView();
+    bar.innerHTML = `<span class="bar__n">Nothing to publish yet — the invoice is still being read.</span>`;
+    wire();
+    drawGuides();
+    return;
+  }
+
   const s = state.session;
   if (!s) return;
 
@@ -162,6 +164,8 @@ function board(s) {
       </div>
     </div>
 
+    ${startStrip()}
+
     <div class="summary">
       <div class="prog">
         <div class="prog__l">
@@ -197,7 +201,7 @@ function lineCard(s, r, isCursor) {
       <header class="line__head">
         <span class="line__id">${esc(r.lineId)}</span>
         <span class="line__desc">${esc(line?.description ?? "")}</span>
-        <span class="line__qty">${line?.quantity} × ${money(line?.unitPrice, s.invoice.currency)}</span>
+        ${line ? `<span class="line__qty">${line.quantity} × ${money(line.unitPrice, s.invoice.currency)}</span>` : ""}
         <span class="match match--${r.matchMethod}">
           ${r.matchMethod === "none" ? "no match" : esc(r.matchMethod)}
           ${r.matchScore ? `<span class="match__score">${r.matchScore.toFixed(2)}</span>` : ""}
@@ -499,11 +503,17 @@ function confirmSheet(s) {
         </section>
       </div>
 
-      ${state.published ? `<p class="cf__result">${esc(state.published)}</p>` : ""}
+      ${state.published ? `<p class="cf__result ${state.publishedOk ? "cf__result--ok" : ""}" role="status">${esc(state.published)}</p>` : ""}
 
       <div class="cf__acts">
-        <button class="act act--primary" id="confirm-publish">Publish and write back</button>
-        <button class="act" id="confirm-back">Back to the board</button>
+        ${
+          state.publishedOk
+            ? `<button class="act" id="confirm-back">Back to the board</button>`
+            : `<button class="act act--primary" id="confirm-publish" ${state.publishing ? "disabled" : ""}>
+                 ${state.publishing ? "Publishing…" : "Publish and write back"}
+               </button>
+               <button class="act" id="confirm-back">Back to the board</button>`
+        }
       </div>
     </div>
   `;
@@ -513,6 +523,11 @@ function confirmSheet(s) {
 
 function barHtml(s) {
   const open = openLines(s).length;
+  /* The confirm sheet carries its own publish button. Two on screen at once
+     would leave the reviewer guessing which one is armed. */
+  if (state.confirming) {
+    return `<span class="bar__n">Review what will be written, then publish from the sheet above.</span>`;
+  }
   return `
     <span class="bar__n">
       ${
@@ -561,6 +576,36 @@ function wire() {
   const demo = document.getElementById("demo-run");
   if (demo) demo.addEventListener("click", () => void startReview(null));
 
+  /* The whole strip accepts a dragged file. `dragleave` fires on every child
+     crossed, so only clear the highlight when the pointer truly leaves. */
+  const drop = document.getElementById("drop");
+  if (drop) {
+    for (const type of ["dragenter", "dragover"]) {
+      drop.addEventListener(type, (e) => {
+        e.preventDefault();
+        drop.classList.add("start--drag");
+      });
+    }
+    drop.addEventListener("dragleave", (e) => {
+      if (!(e.relatedTarget instanceof Node) || !drop.contains(e.relatedTarget)) {
+        drop.classList.remove("start--drag");
+      }
+    });
+    drop.addEventListener("drop", (e) => {
+      e.preventDefault();
+      drop.classList.remove("start--drag");
+      const file = e.dataTransfer?.files?.[0];
+      if (file) void startReview(file);
+    });
+  }
+
+  /* On the extraction screen: abandon the wait and go back to the start. */
+  const restart = document.getElementById("ex-restart");
+  if (restart) restart.addEventListener("click", () => {
+    state.extracting = null;
+    location.search = "";
+  });
+
   const pub = document.getElementById("publish");
   if (pub) pub.addEventListener("click", () => { state.confirming = true; render(); });
 
@@ -568,6 +613,7 @@ function wire() {
   if (back) back.addEventListener("click", () => {
     state.confirming = false;
     state.published = null;
+    state.publishedOk = false;
     render();
   });
 
@@ -650,8 +696,9 @@ function focusCursor() {
  * rather than silent.
  */
 async function publish() {
-  const btn = document.getElementById("confirm-publish");
-  if (btn) { btn.disabled = true; btn.textContent = "Publishing…"; }
+  if (state.publishing || state.publishedOk) return;
+  state.publishing = true;
+  render();
 
   const body = {
     sessionId: state.session.sessionId,
@@ -668,12 +715,14 @@ async function publish() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+    state.publishedOk = res.ok;
     state.published = res.ok
       ? "Published. The corrected invoice is ready and the standard has been updated."
       : `The publish endpoint answered ${res.status}. Workstream D owns POST /api/sessions/:id/publish; until it exists there is nothing for this to call.`;
   } catch (err) {
     state.published = `Could not reach the publish endpoint: ${err instanceof Error ? err.message : String(err)}. Workstream D owns it.`;
   }
+  state.publishing = false;
   render();
 }
 
@@ -707,12 +756,62 @@ addEventListener("resize", drawGuides);
 
 /* ---------- starting a real review ---------- */
 
+/** What the server will accept — mirrors ALLOWED_EXT in src/platform/safety.ts. */
+const ACCEPTED_EXTENSIONS = [".pdf", ".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff", ".docx", ".xlsx"];
+
+/** The server's cap, mirrored so a too-big file costs a sentence, not a 413. */
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Why a file cannot be uploaded, or null if it can.
+ *
+ * Checked here rather than left to the server so a wrong file costs a
+ * sentence, not a round trip and a raw 400.
+ */
+function uploadProblem(file) {
+  const name = file.name.toLowerCase();
+  if (!ACCEPTED_EXTENSIONS.some((ext) => name.endsWith(ext))) {
+    return `Cannot read ${file.name}. Use a PDF, image, DOCX, or XLSX.`;
+  }
+  if (file.size === 0) return `${file.name} is empty.`;
+  if (file.size > MAX_UPLOAD_BYTES) {
+    const mb = (file.size / (1024 * 1024)).toFixed(1);
+    return `${file.name} is ${mb} MB. The limit is 10 MB.`;
+  }
+  return null;
+}
+
+/*
+ * The filename survives the navigation to `?session=<id>` via sessionStorage,
+ * so the extraction screen can say what it is reading. Best effort only:
+ * private windows may refuse storage, and the flow must not care.
+ */
+const UPLOAD_STASH_KEY = "rectify:upload";
+
+function stashUpload(sessionId, filename) {
+  try {
+    sessionStorage.setItem(UPLOAD_STASH_KEY, JSON.stringify({ sessionId, filename }));
+  } catch {
+    // Storage refused. The status screen just will not name the file.
+  }
+}
+
+function stashedFilename(sessionId) {
+  try {
+    const raw = sessionStorage.getItem(UPLOAD_STASH_KEY);
+    const stash = raw ? JSON.parse(raw) : null;
+    return stash && stash.sessionId === sessionId ? (stash.filename ?? null) : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Start a review from a document.
  *
  * `POST /api/documents` answers 202 with a sessionId before extraction has
- * finished, so this hands off to `?session=<id>` and lets the board follow the
- * work as it lands rather than blocking on the model.
+ * finished, so this hands off to `?session=<id>` and lets the extraction
+ * screen follow the work as it lands rather than blocking on the model.
  */
 async function startReview(file) {
   /* Written straight into the node. attr() only reads an element's own
@@ -724,7 +823,15 @@ async function startReview(file) {
     if (slot) slot.textContent = m;
   };
 
-  say("Uploading…");
+  if (file) {
+    const problem = uploadProblem(file);
+    if (problem) {
+      say(problem);
+      return;
+    }
+  }
+
+  say(file ? `Uploading ${file.name}…` : "Seeding the demo invoice…");
   try {
     let res;
     if (file) {
@@ -744,6 +851,7 @@ async function startReview(file) {
     }
 
     const { sessionId } = await res.json();
+    stashUpload(sessionId, file?.name ?? null);
     location.search = `?session=${encodeURIComponent(sessionId)}`;
   } catch (err) {
     say(`Could not reach the upload endpoint: ${err instanceof Error ? err.message : String(err)}`);
@@ -751,20 +859,146 @@ async function startReview(file) {
   }
 }
 
-/** Offered only on the sample board: a real session is already under review. */
+/**
+ * The first part of the page: where a document comes in.
+ *
+ * Offered only on the sample board — a real session is already under review.
+ * The whole strip is a drop target, because dragging a PDF out of an email is
+ * how an invoice actually arrives.
+ */
 function startStrip() {
   if (sessionIdFromUrl()) return "";
   return `
-    <div class="start" data-msg="">
-      <span class="start__lead">You are looking at a sample invoice.</span>
+    <div class="start" id="drop" data-msg="">
+      <span class="start__lead">
+        <b>You are looking at a sample invoice.</b>
+        Drop a real one here to review it — PDF, image, DOCX, or XLSX up to 10&nbsp;MB.
+      </span>
       <label class="act act--doc start__file">
         Upload an invoice
-        <input type="file" id="upload" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" hidden />
+        <!-- sr-only, not hidden: a display:none input can never take keyboard focus. -->
+        <input type="file" id="upload" class="sr-only" accept=".pdf,.png,.jpg,.jpeg,.webp,.tif,.tiff,.docx,.xlsx" />
       </label>
       <button class="act" id="demo-run">Use the demo invoice</button>
-      <span class="start__msg"></span>
+      <span class="start__msg" role="status"></span>
     </div>
   `;
+}
+
+/* ---------- extraction status ---------- */
+
+const POLL_MS = 2000;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Seconds as a reviewer reads them: `41s`, then `1m 12s`. */
+function elapsedLabel(since) {
+  const secs = Math.max(0, Math.round((Date.now() - since) / 1000));
+  return secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${secs % 60}s`;
+}
+
+/**
+ * What the pipeline is doing, told honestly.
+ *
+ * The Workflow reports nothing until it seeds the session, so the steps after
+ * upload are shown as one piece of work in progress, not as checkmarks the
+ * page cannot actually observe.
+ */
+function extractingView() {
+  const ex = state.extracting;
+  const secs = Math.round((Date.now() - ex.since) / 1000);
+
+  return `
+    <div class="panel extract" aria-busy="true">
+      <h2>
+        <span class="extract__spin" aria-hidden="true"></span>
+        Reading ${ex.filename ? `<b>${esc(ex.filename)}</b>` : "the document"}…
+      </h2>
+      <p>
+        The document is uploaded and a Workflow is turning it into a reviewable
+        invoice. This page checks every couple of seconds and opens the flag
+        board the moment the session lands.
+      </p>
+      <ol class="extract__steps">
+        <li class="extract__step extract__step--done">Uploaded and queued</li>
+        <li class="extract__step extract__step--busy">Converting the document to text</li>
+        <li class="extract__step extract__step--busy">Extracting the line items</li>
+        <li class="extract__step extract__step--busy">Matching each line against the standard</li>
+      </ol>
+      <p class="extract__meta">
+        <span class="src src--off">extracting</span>
+        <span>session <code>${esc(ex.sessionId)}</code></span>
+        <span>${esc(elapsedLabel(ex.since))} elapsed</span>
+      </p>
+      ${ex.trouble ? `<p class="hint hint--blocked" role="status">${esc(ex.trouble)}</p>` : ""}
+      ${
+        secs >= 150
+          ? `<p class="extract__slow">Longer than a couple of minutes usually means the extraction failed. Starting over is safe — nothing has been written anywhere.</p>`
+          : secs >= 45
+            ? `<p class="extract__slow">Model extraction can take a minute on a busy gateway. Leaving this page is safe — the link in the address bar comes back to this session.</p>`
+            : ""
+      }
+      <div class="extract__acts">
+        <button class="act" id="ex-restart">Start over with a different document</button>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Wait for the Workflow to seed the session, then open the board on it.
+ *
+ * `GET /api/sessions/:id` answers 404 until the last ingest step runs — that
+ * is the API's whole signal, so polling it is the honest implementation. A
+ * poll that errors keeps trying and says so: extraction still running is not
+ * a failure, and giving up on a blip would strand a session that is seconds
+ * from ready.
+ */
+async function awaitExtraction(sessionId) {
+  state.extracting = {
+    sessionId,
+    since: Date.now(),
+    filename: stashedFilename(sessionId),
+    trouble: null,
+  };
+  render();
+
+  while (state.extracting && state.extracting.sessionId === sessionId) {
+    await sleep(POLL_MS);
+    if (!state.extracting) return;
+
+    try {
+      const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}`);
+      if (res.ok) {
+        const session = await res.json();
+        if (session.status !== "extracting") {
+          state.extracting = null;
+          state.session = session;
+          render();
+          follow();
+          return;
+        }
+        state.extracting = { ...state.extracting, trouble: null };
+      } else if (res.status === 404) {
+        // Not seeded yet. The expected answer mid-extraction.
+        state.extracting = { ...state.extracting, trouble: null };
+      } else {
+        state.extracting = {
+          ...state.extracting,
+          trouble: `The session API answered ${res.status}. Still checking.`,
+        };
+      }
+    } catch (err) {
+      state.extracting = {
+        ...state.extracting,
+        trouble: `Could not reach the API: ${err instanceof Error ? err.message : String(err)}. Still checking.`,
+      };
+    }
+
+    /* Re-render the whole view each poll: it holds no inputs to disturb, and
+       it is what moves the elapsed time and surfaces the slow notes. */
+    if (state.extracting) render();
+  }
 }
 
 /* ---------- live ---------- */
@@ -793,6 +1027,11 @@ function follow() {
     return; // The board still works; it just will not update on its own.
   }
 
+  socket.addEventListener("open", () => {
+    state.live = true;
+    render();
+  });
+
   socket.addEventListener("message", (event) => {
     let msg;
     try {
@@ -820,9 +1059,12 @@ function follow() {
     }
   });
 
+  /* The badge says "reconnecting", so reconnect. A DO evicting its socket or
+     a network blip should cost a few seconds, not the rest of the review. */
   socket.addEventListener("close", () => {
     state.live = false;
     render();
+    setTimeout(follow, 3000);
   });
 }
 
@@ -849,7 +1091,9 @@ addEventListener("keydown", (e) => {
     t instanceof HTMLElement &&
     (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
   if (typing) {
-    if (e.key === "Escape") document.querySelector("[data-cancel]")?.click();
+    /* Cancel the editor being typed in, not whichever one appears first in
+       the DOM — more than one line can be open for editing at a time. */
+    if (e.key === "Escape") t.closest(".editor")?.querySelector("[data-cancel]")?.click();
     return;
   }
 
@@ -865,7 +1109,6 @@ addEventListener("keydown", (e) => {
       `[data-resolve="${KEYS[key]}"][data-line="${line.lineId}"]`
     );
     e.preventDefault();
-    state.usedKeys = true;
     if (btn && !btn.disabled) {
       state.blocked = null;
       btn.click();
@@ -887,22 +1130,23 @@ addEventListener("keydown", (e) => {
     const btn = document.querySelector(`[data-edit="${line.lineId}"]`);
     if (btn) {
       e.preventDefault();
-      state.usedKeys = true;
       btn.click();
-      document.querySelector(".editor input")?.focus();
+      /* click() re-rendered the board, so find this line's editor afresh. */
+      document
+        .querySelector(`[data-line-id="${line.lineId}"] .editor input`)
+        ?.focus();
     }
     return;
   }
 
   if (key === "u") {
     const btn = document.querySelector(`[data-undo="${line.lineId}"]`);
-    if (btn) { e.preventDefault(); state.usedKeys = true; btn.click(); }
+    if (btn) { e.preventDefault(); btn.click(); }
     return;
   }
 
   if (key === "j" || key === "arrowdown") {
     e.preventDefault();
-    state.usedKeys = true;
     state.cursor = Math.min(state.cursor + 1, state.session.lines.length - 1);
     state.atEnd = false;
     render();
@@ -912,7 +1156,6 @@ addEventListener("keydown", (e) => {
 
   if (key === "k" || key === "arrowup") {
     e.preventDefault();
-    state.usedKeys = true;
     state.cursor = Math.max(state.cursor - 1, 0);
     state.atEnd = false;
     render();
@@ -932,18 +1175,45 @@ document.getElementById("tab-standard").addEventListener("click", () => {
 });
 
 function syncTabs() {
-  document.getElementById("tab-board").setAttribute("aria-selected", String(state.tab === "board"));
-  document.getElementById("tab-standard").setAttribute("aria-selected", String(state.tab === "standard"));
+  document.getElementById("tab-board").setAttribute("aria-pressed", String(state.tab === "board"));
+  document.getElementById("tab-standard").setAttribute("aria-pressed", String(state.tab === "standard"));
   render();
 }
 
-loadSession()
-  .then((s) => {
-    state.session = s;
+/**
+ * Where the page starts.
+ *
+ * Without `?session=`, the sample board with the upload strip: the first part
+ * of the page. With one, the live session — and a 404 there means extraction
+ * has not landed yet, not a dead link, so the page waits on it rather than
+ * erroring. A reviewer who followed a link to a real document is never shown
+ * someone else's sample data as a silent fallback.
+ */
+async function boot() {
+  const id = sessionIdFromUrl();
+  if (!id) {
+    state.session = await loadFixture();
     render();
-    follow();
-  })
-  .catch((err) => {
-    document.getElementById("root").innerHTML =
-      `<p class="empty">${esc(err.message)}. The fixture lives at <code>${FIXTURE}</code>.</p>`;
-  });
+    return;
+  }
+
+  const res = await fetch(`/api/sessions/${encodeURIComponent(id)}`);
+  if (res.ok) {
+    const session = await res.json();
+    if (session.status !== "extracting") {
+      state.session = session;
+      render();
+      follow();
+      return;
+    }
+  } else if (res.status !== 404) {
+    throw new Error(`The session API answered ${res.status}.`);
+  }
+
+  await awaitExtraction(id);
+}
+
+boot().catch((err) => {
+  document.getElementById("root").innerHTML =
+    `<p class="empty">${esc(err instanceof Error ? err.message : String(err))}</p>`;
+});

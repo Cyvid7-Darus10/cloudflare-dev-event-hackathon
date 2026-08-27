@@ -8,13 +8,12 @@
 
   Money at stake is the exception. It gets its own weight, because that is
   the number a reviewer is actually deciding about.
+
+  The register is the Cloudflare dashboard's own: near-white, hairline rules,
+  no shadows, dashed technical guides, and orange held back for the document's
+  value and the one action that matters.
 */
 :root {
-  /*
-    The Cloudflare dashboard's own register: near-white, hairline rules, no
-    shadows, and orange held back rather than spent on chrome. Status colour
-    is desaturated to sit inside that restraint instead of shouting over it.
-  */
   --ground: #fff;
   --paper: #fff;
   --paper-2: #fafafa;
@@ -28,7 +27,8 @@
   --edge: #949494;   /* a control's own edge, 3.03:1 */
   --rule-2: #f0f0f0;
 
-  /* Cloudflare orange. The document's value, and the one action that matters. */
+  /* Cloudflare orange. The document's value, and the one action that matters.
+     --doc is for fills and rings; --doc-ink is the text-safe shade. */
   --doc: #f6821f;
   --doc-ink: #9c4a00;
   --doc-soft: #fef6ef;
@@ -53,8 +53,6 @@
   --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 20px; --s-5: 32px;
   --t-2xs: 11px; --t-xs: 12.5px; --t-sm: 13.5px; --t-md: 15px; --t-lg: 18px;
 
-  /* Cloudflare's surfaces do not lift. Borders carry the separation. */
-  --lift: none;
   --fast: 110ms; --ease: cubic-bezier(.32,.72,0,1);
 }
 
@@ -69,6 +67,43 @@ button { font: inherit; cursor: pointer; }
 :focus-visible { outline: 2px solid var(--doc); outline-offset: 2px; border-radius: 3px; }
 .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
 
+/* ---- the drawing layer ---- */
+
+/*
+  The dashboard's signature: dashed technical guides with a small square at
+  each intersection, a drawing layer under the content rather than decoration
+  on top of it. Purely decorative, so it is hidden from assistive tech and
+  takes no pointer events.
+*/
+.guides {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.guides__v {
+  position: absolute;
+  inset-block: 0;
+  border-inline-start: 1px dashed var(--rule);
+}
+.guides__h {
+  position: absolute;
+  inset-inline: 0;
+  border-block-start: 1px dashed var(--rule);
+}
+.guides__node {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  background: var(--paper);
+  border: 1px solid var(--ink-4);
+  transform: translate(-50%, -50%);
+}
+@media (max-width: 900px) { .guides { display: none; } }
+
+/* Content sits above the drawing. */
+.top, .shell, .bar { position: relative; z-index: 1; }
+
 /* ---- chrome ---- */
 .top { background: var(--paper); border-bottom: 1px solid var(--rule); }
 .top__in {
@@ -77,24 +112,39 @@ button { font: inherit; cursor: pointer; }
 }
 .brand { font-weight: 600; letter-spacing: -.02em; font-size: var(--t-lg); }
 .brand span { color: var(--ink-3); font-weight: 400; font-size: var(--t-xs); font-family: var(--mono); margin-left: var(--s-2); }
-.tabs { display: flex; gap: 2px; background: var(--rule-2); padding: 3px; border-radius: 999px; margin-left: auto; }
+
+/* A segmented control on white, not a pill on grey. */
+.tabs { display: flex; margin-left: auto; border: 1px solid var(--edge); border-radius: var(--r-md); overflow: hidden; }
 .tabs button {
   border: 0; background: transparent; color: var(--ink-2);
-  font-size: var(--t-xs); font-weight: 500; padding: 5px 13px; border-radius: 999px;
+  font-size: var(--t-xs); font-weight: 500; padding: 6px 14px;
 }
-.tabs button[aria-selected="true"] { background: var(--paper); color: var(--ink);  }
+.tabs button + button { border-inline-start: 1px solid var(--rule); }
+.tabs button[aria-pressed="true"] { background: var(--paper-2); color: var(--ink); }
 
 .shell { max-width: 1140px; margin: 0 auto; padding: var(--s-4) clamp(16px,4vw,32px) 104px; }
 
 /* ---- invoice header ---- */
-.inv { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); align-items: baseline; margin-bottom: var(--s-4); }
-.inv h1 { margin: 0; font-size: clamp(20px,3vw,26px); font-weight: 600; letter-spacing: -.02em; }
+
+/* A headline in two tones, the way the dashboard sets them. The meta belongs
+   under it, not beside its first line: baseline alignment against a two-tone
+   display size puts it in the wrong place. */
+.inv { display: block; margin-block-end: var(--s-5); }
+.inv h1 {
+  margin: 0 0 var(--s-3);
+  font-size: clamp(30px, 5vw, 46px);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.04;
+  color: var(--ink);
+}
+.inv h1 .dim { color: var(--ink-3); display: block; font-weight: 500; }
 .inv__meta { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-3); display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-3); }
 
 /* ---- summary ---- */
 .summary {
   position: sticky; top: 0; z-index: 5; background: var(--paper);
-  border: 1px solid var(--rule); border-radius: var(--r-lg); 
+  border: 1px solid var(--rule); border-radius: var(--r-lg);
   padding: var(--s-3) var(--s-4); margin-bottom: var(--s-4);
   display: flex; flex-wrap: wrap; gap: var(--s-3) var(--s-4); align-items: center;
 }
@@ -102,16 +152,16 @@ button { font: inherit; cursor: pointer; }
 .prog__l { display: flex; justify-content: space-between; gap: var(--s-2); font-size: var(--t-xs); color: var(--ink-2); margin-bottom: 6px; }
 .prog__l b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
 .prog__t { height: 5px; background: var(--rule-2); border-radius: 999px; overflow: hidden; }
-.prog__f { height: 100%; background: var(--ok); border-radius: 999px; transition: width 260ms var(--ease); }
+.prog__f { height: 100%; background: var(--ink); border-radius: 999px; transition: width 260ms var(--ease); }
 .exposure {
   font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-2);
-  background: var(--warn-soft); border: 1px solid #eddcbd; padding: 5px 11px; border-radius: var(--r-md);
+  background: var(--warn-soft); border: 1px solid var(--warn-edge); padding: 5px 11px; border-radius: var(--r-md);
 }
 .exposure b { color: var(--warn); font-weight: 600; }
 
 /* ---- a line ---- */
 .line { background: var(--paper); border: 1px solid var(--rule); border-radius: var(--r-lg); margin-bottom: var(--s-3); overflow: hidden; }
-.line[data-res]:not([data-res="pending"]) { border-color: #c6e0d3; }
+.line[data-res]:not([data-res="pending"]) { border-color: var(--ok-edge); }
 .line__head {
   display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3);
   padding: var(--s-3) var(--s-4); border-bottom: 1px solid var(--rule-2); background: var(--paper-2);
@@ -122,10 +172,10 @@ button { font: inherit; cursor: pointer; }
 .line__done { margin-left: auto; font-size: var(--t-xs); font-weight: 500; color: var(--ok); }
 
 .match { display: inline-flex; align-items: center; gap: 5px; font-size: var(--t-2xs); font-weight: 500; letter-spacing: .04em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1px solid transparent; }
-.match--exact { color: var(--ok); background: var(--ok-soft); border-color: #c6e0d3; }
-.match--alias { color: var(--doc); background: var(--doc-soft); border-color: var(--doc-edge); }
-.match--semantic { color: var(--warn); background: var(--warn-soft); border-color: #eddcbd; }
-.match--none { color: var(--lost); background: var(--lost-soft); border-color: #f0ccd4; }
+.match--exact { color: var(--ok); background: var(--ok-soft); border-color: var(--ok-edge); }
+.match--alias { color: var(--doc-ink); background: var(--doc-soft); border-color: var(--doc-edge); }
+.match--semantic { color: var(--warn); background: var(--warn-soft); border-color: var(--warn-edge); }
+.match--none { color: var(--lost); background: var(--lost-soft); border-color: var(--lost-edge); }
 .match__score { font-family: var(--mono); opacity: .7; }
 
 .raw { font-family: var(--mono); font-size: var(--t-2xs); color: var(--ink-4); padding: var(--s-2) var(--s-4) 0; white-space: pre-wrap; word-break: break-word; }
@@ -148,7 +198,7 @@ button { font: inherit; cursor: pointer; }
 .side__l { font-size: var(--t-2xs); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 2px; }
 .side__v { font-family: var(--mono); font-size: var(--t-sm); word-break: break-word; white-space: pre-wrap; }
 .side--doc { background: var(--doc-soft); }
-.side--doc .side__l { color: var(--doc); }
+.side--doc .side__l { color: var(--doc-ink); }
 .side__none { color: var(--ink-4); font-style: italic; font-family: var(--ui); }
 .side--won { background: var(--ok-soft); }
 .side--won .side__l { color: var(--ok); }
@@ -157,15 +207,27 @@ button { font: inherit; cursor: pointer; }
 .why { font-size: var(--t-xs); color: var(--ink-2); padding: var(--s-2) var(--s-3); border-top: 1px solid var(--rule-2); background: var(--paper); }
 
 /* ---- resolution ---- */
+
+/* A hairline is right between surfaces and wrong on a control: a button's own
+   edge is what says it is a button, and --rule measures 1.26:1 against white. */
 .res { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; padding: var(--s-3) var(--s-4); }
-.act { border: 1px solid var(--rule); background: var(--paper); color: var(--ink-2); font-size: var(--t-xs); font-weight: 500; padding: 7px 12px; border-radius: var(--r-md); transition: border-color var(--fast) var(--ease), color var(--fast) var(--ease); }
+.act { border: 1px solid var(--edge); background: var(--paper); color: var(--ink-2); font-size: var(--t-xs); font-weight: 500; padding: 7px 12px; border-radius: var(--r-md); transition: border-color var(--fast) var(--ease), color var(--fast) var(--ease); }
 .act:hover:not(:disabled) { border-color: var(--ink-4); color: var(--ink); }
 .act:disabled { opacity: .45; cursor: not-allowed; }
-.act--doc { border-color: var(--doc-edge); color: var(--doc); background: var(--doc-soft); }
+.act--doc { border-color: var(--doc-edge); color: var(--doc-ink); background: var(--doc-soft); }
 .act--doc:hover:not(:disabled) { border-color: var(--doc); }
 .act--undo { margin-left: auto; border-style: dashed; color: var(--ink-3); }
 .hint { font-size: var(--t-xs); color: var(--ink-3); flex-basis: 100%; }
 .hint b { color: var(--lost); font-weight: 600; }
+
+/* Orange is the accent, so the primary action is the only orange fill. */
+.act--primary {
+  border-color: var(--doc);
+  background: var(--doc);
+  color: #1d1d1d;
+  font-weight: 600;
+}
+.act--primary:hover:not(:disabled) { border-color: #e0741a; background: #e0741a; color: #1d1d1d; }
 
 /* Editing is a different mode, so it gets its own shape rather than floating
    in the card. Inset to the same edge the flag cards sit on: a stray edge here
@@ -211,7 +273,7 @@ button { font: inherit; cursor: pointer; }
 .editor__req {
   font-family: var(--ui);
   font-size: var(--t-2xs);
-  color: var(--doc);
+  color: var(--doc-ink);
   font-weight: 500;
 }
 
@@ -219,7 +281,7 @@ button { font: inherit; cursor: pointer; }
   font-family: var(--mono);
   font-size: var(--t-sm);
   padding: 7px 10px;
-  border: 1px solid var(--doc-edge);
+  border: 1px solid var(--edge);
   border-radius: var(--r-sm);
   background: var(--paper);
   color: var(--ink);
@@ -243,12 +305,6 @@ button { font: inherit; cursor: pointer; }
   padding-block-start: var(--s-3);
   border-block-start: 1px solid var(--doc-edge);
 }
-.act--primary {
-  border-color: var(--doc);
-  background: var(--doc);
-  color: #fff;
-}
-.act--primary:hover:not(:disabled) { border-color: #255c96; background: #255c96; color: #fff; }
 
 /* ---- standard tab ---- */
 .panel { background: var(--paper); border: 1px solid var(--rule); border-radius: var(--r-lg); padding: var(--s-4); margin-bottom: var(--s-3); }
@@ -263,14 +319,13 @@ td.n { color: var(--ink); }
 .empty { color: var(--ink-3); font-size: var(--t-sm); font-style: italic; }
 
 /* ---- bottom bar ---- */
-.bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--paper); border-top: 1px solid var(--rule); box-shadow: none; padding: var(--s-3) clamp(16px,4vw,32px); }
+.bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--paper); border-top: 1px solid var(--rule); padding: var(--s-3) clamp(16px,4vw,32px); }
 .bar__in { max-width: 1140px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center; }
 .bar__n { font-size: var(--t-xs); color: var(--ink-3); flex: 1 1 auto; }
 .bar__n b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
-.cta { border: 1px solid var(--ok); background: var(--ok); color: #fff; font-size: var(--t-sm); font-weight: 600; padding: 9px 18px; border-radius: var(--r-md); }
+.cta { border: 1px solid var(--doc); background: var(--doc); color: #1d1d1d; font-size: var(--t-sm); font-weight: 600; padding: 9px 18px; border-radius: var(--r-md); }
+.cta:hover:not(:disabled) { border-color: #e0741a; background: #e0741a; }
 .cta:disabled { background: var(--rule-2); border-color: var(--rule); color: var(--ink-4); cursor: not-allowed; }
-
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
 /* ---- agreements, folded ---- */
 .agrees { border: 1px dashed var(--rule); border-radius: var(--r-md); background: var(--paper-2); }
@@ -304,7 +359,7 @@ td.n { color: var(--ink); }
 .cf__half--teach { border-color: var(--doc-edge); background: var(--doc-soft); }
 
 .cf__half h3 { margin: 0 0 var(--s-1); font-size: var(--t-sm); font-weight: 600; }
-.cf__half--teach h3 { color: var(--doc); }
+.cf__half--teach h3 { color: var(--doc-ink); }
 .cf__note { margin: 0 0 var(--s-3); font-size: var(--t-xs); color: var(--ink-3); max-width: 46ch; }
 
 .cf__row {
@@ -319,15 +374,18 @@ td.n { color: var(--ink); }
 .cf__row b { font-weight: 500; color: var(--ink); }
 .cf__row span { font-family: var(--mono); font-size: var(--t-2xs); color: var(--ink-3); text-align: end; }
 
+/* The publish outcome. Warn by default — something answered wrong — and green
+   only when it actually landed. */
 .cf__result {
   margin: var(--s-3) 0 0;
   padding: var(--s-3);
   border-radius: var(--r-md);
   background: var(--warn-soft);
-  border: 1px solid #eddcbd;
+  border: 1px solid var(--warn-edge);
   font-size: var(--t-sm);
   color: var(--ink-2);
 }
+.cf__result--ok { background: var(--ok-soft); border-color: var(--ok-edge); }
 
 .cf__acts {
   display: flex;
@@ -337,105 +395,6 @@ td.n { color: var(--ink); }
   padding-block-start: var(--s-3);
   border-block-start: 1px solid var(--rule);
 }
-
-/* ==== the Cloudflare register ============================================ */
-
-/*
-  The dashboard's signature is a dashed technical guide with a small square at
-  each intersection: a drawing layer under the content rather than decoration
-  on top of it. It is what makes the page read as a developer platform instead
-  of a generic admin panel.
-
-  Purely decorative, so it is hidden from assistive tech and does not take
-  pointer events.
-*/
-.guides {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-}
-.guides__v {
-  position: absolute;
-  inset-block: 0;
-  border-inline-start: 1px dashed var(--rule);
-}
-.guides__h {
-  position: absolute;
-  inset-inline: 0;
-  border-block-start: 1px dashed var(--rule);
-}
-.guides__node {
-  position: absolute;
-  width: 7px;
-  height: 7px;
-  background: var(--paper);
-  border: 1px solid var(--ink-4);
-  transform: translate(-50%, -50%);
-}
-@media (max-width: 900px) { .guides { display: none; } }
-
-/* Content sits above the drawing. */
-.top, .shell, .bar { position: relative; z-index: 1; }
-
-/* A headline in two tones, the way the dashboard sets them. */
-.inv h1 {
-  font-size: clamp(30px, 5vw, 46px);
-  font-weight: 600;
-  letter-spacing: -0.035em;
-  line-height: 1.04;
-  color: var(--ink);
-}
-.inv h1 .dim { color: var(--ink-3); display: block; font-weight: 500; }
-
-/* Hairlines, not lifts. */
-.summary, .line, .panel, .flag, .editor, .cf__half { box-shadow: none; }
-.bar { box-shadow: none; border-block-start: 1px solid var(--rule); }
-
-/* Orange is the accent, so the primary action is the only orange fill. */
-.act--primary, .cta {
-  background: var(--doc);
-  border-color: var(--doc);
-  color: #1d1d1d;
-  font-weight: 600;
-}
-.act--primary:hover:not(:disabled), .cta:hover:not(:disabled) {
-  background: #e0741a;
-  border-color: #e0741a;
-  color: #1d1d1d;
-}
-.act--doc { background: var(--doc-soft); border-color: var(--doc-edge); color: var(--doc-ink); }
-.act--doc:hover:not(:disabled) { border-color: var(--doc); }
-
-.side--doc { background: var(--doc-soft); }
-.side--doc .side__l { color: var(--doc-ink); }
-.match--alias { color: var(--doc-ink); background: var(--doc-soft); border-color: var(--doc-edge); }
-.editor { background: var(--doc-soft); border-color: var(--doc-edge); }
-.editor input { border-color: var(--doc-edge); }
-.editor input:focus { outline-color: var(--doc); }
-.editor__req { color: var(--doc-ink); }
-.cf__half--teach { background: var(--doc-soft); border-color: var(--doc-edge); }
-.cf__half--teach h3 { color: var(--doc-ink); }
-:focus-visible { outline-color: var(--doc); }
-.prog__f { background: var(--ink); }
-
-/* Tabs read as a segmented control on white, not a pill on grey. */
-.tabs { background: transparent; padding: 0; gap: 0; border: 1px solid var(--rule); border-radius: var(--r-md); overflow: hidden; }
-.tabs button { border-radius: 0; padding: 6px 14px; }
-.tabs button + button { border-inline-start: 1px solid var(--rule); }
-.tabs button[aria-selected="true"] { background: var(--paper-2); color: var(--ink); }
-
-/* The meta belongs under the headline, not beside its first line. Baseline
-   alignment against a two-tone display size puts it in the wrong place. */
-.inv { display: block; margin-block-end: var(--s-5); }
-.inv h1 { margin: 0 0 var(--s-3); }
-.inv__meta { font-size: var(--t-xs); }
-
-/* A hairline is right between surfaces and wrong on a control: a button's own
-   edge is what says it is a button, and --rule measures 1.26:1 against white. */
-.act, .cta, .tabs, .editor input { border-color: var(--edge); }
-.act--primary, .cta { border-color: var(--doc); }
-.act--doc { border-color: var(--doc-edge); }
 
 /* ---- keyboard triage ---- */
 
@@ -462,21 +421,6 @@ kbd {
   vertical-align: middle;
 }
 .act--doc kbd { border-color: var(--doc-edge); }
-.keyhint kbd { margin-inline: 2px; }
-
-.keyhint {
-  margin: 0 0 var(--s-3);
-  padding: 8px var(--s-3);
-  border: 1px dashed var(--rule);
-  border-radius: var(--r-md);
-  font-size: var(--t-xs);
-  color: var(--ink-3);
-  background: var(--paper-2);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .line[data-cursor="true"] { scroll-behavior: auto; }
-}
 
 /* A key that cannot apply has to say so. Silence reads as a broken keyboard. */
 .hint--blocked {
@@ -513,7 +457,111 @@ kbd {
   background: var(--paper-2);
 }
 .start__lead { font-size: var(--t-sm); color: var(--ink-2); margin-inline-end: auto; }
+.start__lead b { color: var(--ink); font-weight: 600; display: block; }
 .start__file { cursor: pointer; }
-.start__msg { font-size: var(--t-xs); color: var(--ink-3); font-family: var(--mono); }
+/* The file input inside is sr-only, so its focus has to show on the label. */
+.start__file:focus-within { outline: 2px solid var(--doc); outline-offset: 2px; }
+.start__msg { font-size: var(--t-xs); color: var(--ink-3); font-family: var(--mono); flex-basis: 100%; }
 .start[data-msg=""] .start__msg { display: none; }
 
+/* A file held over the strip. The dashed border is already the drop-zone
+   idiom; it only has to answer. */
+.start--drag {
+  border-color: var(--doc);
+  background: var(--doc-soft);
+}
+.start--drag .start__lead { color: var(--doc-ink); }
+
+/* ---- extraction status ---- */
+
+.extract h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0 0 var(--s-2);
+  font-size: var(--t-lg);
+  font-weight: 600;
+}
+.extract h2 b { font-family: var(--mono); font-weight: 500; font-size: var(--t-md); }
+
+.extract__spin {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border: 2px solid var(--doc-edge);
+  border-block-start-color: var(--doc);
+  border-radius: 50%;
+  animation: extract-spin 900ms linear infinite;
+}
+@keyframes extract-spin { to { transform: rotate(360deg); } }
+
+.extract__steps {
+  margin: 0 0 var(--s-3);
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+.extract__step {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  font-size: var(--t-sm);
+  color: var(--ink-2);
+}
+.extract__step::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--ink-4);
+  background: var(--paper);
+  transform: translateY(-1px);
+}
+.extract__step--done { color: var(--ok); }
+.extract__step--done::before { background: var(--ok); border-color: var(--ok); }
+.extract__step--busy::before {
+  border-color: var(--doc);
+  animation: extract-pulse 1.4s ease-in-out infinite;
+}
+@keyframes extract-pulse {
+  0%, 100% { background: var(--paper); }
+  50% { background: var(--doc); }
+}
+
+.extract__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  margin: 0 0 var(--s-3);
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  color: var(--ink-3);
+}
+.extract__meta code { word-break: break-all; }
+
+.extract__slow {
+  margin: 0 0 var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--warn-edge);
+  border-radius: var(--r-md);
+  background: var(--warn-soft);
+  font-size: var(--t-xs);
+  color: var(--warn);
+  max-width: 62ch;
+}
+
+.extract__acts {
+  padding-block-start: var(--s-3);
+  border-block-start: 1px solid var(--rule-2);
+}
+
+/* Motion here is only reassurance; a still page must still read as working. */
+@media (prefers-reduced-motion: reduce) {
+  .extract__spin, .extract__step--busy::before { animation: none; }
+  .extract__step--busy::before { background: var(--doc-soft); }
+}
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
