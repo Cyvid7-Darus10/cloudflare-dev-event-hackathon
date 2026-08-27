@@ -10,38 +10,51 @@
   the number a reviewer is actually deciding about.
 */
 :root {
-  --ground: #f5f6f8;
+  /*
+    The Cloudflare dashboard's own register: near-white, hairline rules, no
+    shadows, and orange held back rather than spent on chrome. Status colour
+    is desaturated to sit inside that restraint instead of shouting over it.
+  */
+  --ground: #fff;
   --paper: #fff;
-  --paper-2: #fafbfc;
+  --paper-2: #fafafa;
 
-  --ink: #171a21;
-  --ink-2: #4a5160;
-  --ink-3: #767e8e;
-  --ink-4: #a2a9b6;
+  --ink: #1d1d1d;
+  --ink-2: #595959;
+  --ink-3: #767676; /* 4.54:1 on white. #8c8c8c measured 3.36 and failed. */
+  --ink-4: #b3b3b3;
 
-  --rule: #e2e5ea;
-  --rule-2: #eef0f4;
+  --rule: #e5e5e5;   /* decorative separation only, 1.26:1 */
+  --edge: #949494;   /* a control's own edge, 3.03:1 */
+  --rule-2: #f0f0f0;
 
-  --doc: #2f6fb2;            /* the document's value */
-  --doc-soft: #eaf2fa;
-  --doc-edge: #b9d3ea;
+  /* Cloudflare orange. The document's value, and the one action that matters. */
+  --doc: #f6821f;
+  --doc-ink: #9c4a00;
+  --doc-soft: #fef6ef;
+  --doc-edge: #f6d3b0;
 
-  --ok: #2c7a5b;             /* agrees, or resolved */
-  --ok-soft: #e9f4ef;
+  --ok: #3a7d5c;
+  --ok-soft: #f1f7f4;
+  --ok-edge: #cfe3d8;
 
-  --warn: #b0731c;           /* differs */
-  --warn-soft: #fbf3e6;
+  --warn: #8a6417;
+  --warn-soft: #fbf7ee;
+  --warn-edge: #e8dcc2;
 
-  --lost: #a3384a;           /* unmatched: we do not know what this is */
-  --lost-soft: #fbecef;
+  --lost: #9c3a3a;
+  --lost-soft: #fbf1f1;
+  --lost-edge: #e8cfcf;
 
-  --ui: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --ui: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  --r-sm: 5px; --r-md: 8px; --r-lg: 12px;
-  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 18px; --s-5: 28px;
+  --r-sm: 4px; --r-md: 6px; --r-lg: 8px;
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 20px; --s-5: 32px;
   --t-2xs: 11px; --t-xs: 12.5px; --t-sm: 13.5px; --t-md: 15px; --t-lg: 18px;
-  --lift: 0 1px 2px rgba(23,26,33,.05), 0 1px 1px rgba(23,26,33,.04);
+
+  /* Cloudflare's surfaces do not lift. Borders carry the separation. */
+  --lift: none;
   --fast: 110ms; --ease: cubic-bezier(.32,.72,0,1);
 }
 
@@ -69,7 +82,7 @@ button { font: inherit; cursor: pointer; }
   border: 0; background: transparent; color: var(--ink-2);
   font-size: var(--t-xs); font-weight: 500; padding: 5px 13px; border-radius: 999px;
 }
-.tabs button[aria-selected="true"] { background: var(--paper); color: var(--ink); box-shadow: var(--lift); }
+.tabs button[aria-selected="true"] { background: var(--paper); color: var(--ink);  }
 
 .shell { max-width: 1140px; margin: 0 auto; padding: var(--s-4) clamp(16px,4vw,32px) 104px; }
 
@@ -81,7 +94,7 @@ button { font: inherit; cursor: pointer; }
 /* ---- summary ---- */
 .summary {
   position: sticky; top: 0; z-index: 5; background: var(--paper);
-  border: 1px solid var(--rule); border-radius: var(--r-lg); box-shadow: var(--lift);
+  border: 1px solid var(--rule); border-radius: var(--r-lg); 
   padding: var(--s-3) var(--s-4); margin-bottom: var(--s-4);
   display: flex; flex-wrap: wrap; gap: var(--s-3) var(--s-4); align-items: center;
 }
@@ -250,7 +263,7 @@ td.n { color: var(--ink); }
 .empty { color: var(--ink-3); font-size: var(--t-sm); font-style: italic; }
 
 /* ---- bottom bar ---- */
-.bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--paper); border-top: 1px solid var(--rule); box-shadow: 0 -4px 14px -8px rgba(23,26,33,.18); padding: var(--s-3) clamp(16px,4vw,32px); }
+.bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--paper); border-top: 1px solid var(--rule); box-shadow: none; padding: var(--s-3) clamp(16px,4vw,32px); }
 .bar__in { max-width: 1140px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center; }
 .bar__n { font-size: var(--t-xs); color: var(--ink-3); flex: 1 1 auto; }
 .bar__n b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -324,3 +337,102 @@ td.n { color: var(--ink); }
   padding-block-start: var(--s-3);
   border-block-start: 1px solid var(--rule);
 }
+
+/* ==== the Cloudflare register ============================================ */
+
+/*
+  The dashboard's signature is a dashed technical guide with a small square at
+  each intersection: a drawing layer under the content rather than decoration
+  on top of it. It is what makes the page read as a developer platform instead
+  of a generic admin panel.
+
+  Purely decorative, so it is hidden from assistive tech and does not take
+  pointer events.
+*/
+.guides {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.guides__v {
+  position: absolute;
+  inset-block: 0;
+  border-inline-start: 1px dashed var(--rule);
+}
+.guides__h {
+  position: absolute;
+  inset-inline: 0;
+  border-block-start: 1px dashed var(--rule);
+}
+.guides__node {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  background: var(--paper);
+  border: 1px solid var(--ink-4);
+  transform: translate(-50%, -50%);
+}
+@media (max-width: 900px) { .guides { display: none; } }
+
+/* Content sits above the drawing. */
+.top, .shell, .bar { position: relative; z-index: 1; }
+
+/* A headline in two tones, the way the dashboard sets them. */
+.inv h1 {
+  font-size: clamp(30px, 5vw, 46px);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.04;
+  color: var(--ink);
+}
+.inv h1 .dim { color: var(--ink-3); display: block; font-weight: 500; }
+
+/* Hairlines, not lifts. */
+.summary, .line, .panel, .flag, .editor, .cf__half { box-shadow: none; }
+.bar { box-shadow: none; border-block-start: 1px solid var(--rule); }
+
+/* Orange is the accent, so the primary action is the only orange fill. */
+.act--primary, .cta {
+  background: var(--doc);
+  border-color: var(--doc);
+  color: #1d1d1d;
+  font-weight: 600;
+}
+.act--primary:hover:not(:disabled), .cta:hover:not(:disabled) {
+  background: #e0741a;
+  border-color: #e0741a;
+  color: #1d1d1d;
+}
+.act--doc { background: var(--doc-soft); border-color: var(--doc-edge); color: var(--doc-ink); }
+.act--doc:hover:not(:disabled) { border-color: var(--doc); }
+
+.side--doc { background: var(--doc-soft); }
+.side--doc .side__l { color: var(--doc-ink); }
+.match--alias { color: var(--doc-ink); background: var(--doc-soft); border-color: var(--doc-edge); }
+.editor { background: var(--doc-soft); border-color: var(--doc-edge); }
+.editor input { border-color: var(--doc-edge); }
+.editor input:focus { outline-color: var(--doc); }
+.editor__req { color: var(--doc-ink); }
+.cf__half--teach { background: var(--doc-soft); border-color: var(--doc-edge); }
+.cf__half--teach h3 { color: var(--doc-ink); }
+:focus-visible { outline-color: var(--doc); }
+.prog__f { background: var(--ink); }
+
+/* Tabs read as a segmented control on white, not a pill on grey. */
+.tabs { background: transparent; padding: 0; gap: 0; border: 1px solid var(--rule); border-radius: var(--r-md); overflow: hidden; }
+.tabs button { border-radius: 0; padding: 6px 14px; }
+.tabs button + button { border-inline-start: 1px solid var(--rule); }
+.tabs button[aria-selected="true"] { background: var(--paper-2); color: var(--ink); }
+
+/* The meta belongs under the headline, not beside its first line. Baseline
+   alignment against a two-tone display size puts it in the wrong place. */
+.inv { display: block; margin-block-end: var(--s-5); }
+.inv h1 { margin: 0 0 var(--s-3); }
+.inv__meta { font-size: var(--t-xs); }
+
+/* A hairline is right between surfaces and wrong on a control: a button's own
+   edge is what says it is a button, and --rule measures 1.26:1 against white. */
+.act, .cta, .tabs, .editor input { border-color: var(--edge); }
+.act--primary, .cta { border-color: var(--doc); }
+.act--doc { border-color: var(--doc-edge); }

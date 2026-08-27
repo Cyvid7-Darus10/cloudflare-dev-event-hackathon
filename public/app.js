@@ -98,6 +98,7 @@ function render() {
       : standard(s);
   bar.innerHTML = barHtml(s);
   wire();
+  drawGuides();
 }
 
 function board(s) {
@@ -113,7 +114,7 @@ function board(s) {
 
   return `
     <div class="inv">
-      <h1>${esc(inv.vendor)}</h1>
+      <h1><span class="dim">Reviewing an invoice from</span>${esc(inv.vendor)}</h1>
       <div class="inv__meta">
         <span>${esc(inv.invoiceNumber)}</span><span>·</span>
         <span>${esc(inv.issueDate)}</span><span>·</span>
@@ -582,6 +583,34 @@ async function publish() {
   }
   render();
 }
+
+/**
+ * The drawing layer.
+ *
+ * Two vertical guides on the content's own margins and a horizontal one under
+ * the header, with a small square where they cross. Measured from the rendered
+ * shell rather than hardcoded, so it follows the layout at any width instead of
+ * drifting away from it.
+ */
+function drawGuides() {
+  const host = document.querySelector(".guides");
+  const shell = document.querySelector(".shell");
+  if (!host || !shell) return;
+
+  const r = shell.getBoundingClientRect();
+  const inset = 22;
+  const xs = [r.left - inset, r.right + inset];
+  const ys = [96, window.innerHeight - 84];
+
+  host.innerHTML =
+    xs.map((x) => `<span class="guides__v" style="inset-inline-start:${x}px"></span>`).join("") +
+    ys.map((y) => `<span class="guides__h" style="inset-block-start:${y}px"></span>`).join("") +
+    xs
+      .flatMap((x) => ys.map((y) => `<span class="guides__node" style="inset-inline-start:${x}px;inset-block-start:${y}px"></span>`))
+      .join("");
+}
+
+addEventListener("resize", drawGuides);
 
 /* ---------- boot ---------- */
 
