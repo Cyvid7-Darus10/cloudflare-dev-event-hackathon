@@ -487,3 +487,33 @@ kbd {
   padding: 7px 10px;
   margin: 0;
 }
+
+/* ---- source badge + starting a review ---- */
+
+.src {
+  font-family: var(--mono);
+  font-size: var(--t-2xs);
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+.src--live { color: var(--ok); background: var(--ok-soft); border-color: var(--ok-edge); }
+.src--off { color: var(--warn); background: var(--warn-soft); border-color: var(--warn-edge); }
+.src--sample { color: var(--ink-2); background: var(--paper-2); border-color: var(--rule); }
+
+.start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  margin-block-end: var(--s-3);
+  padding: var(--s-3);
+  border: 1px dashed var(--edge);
+  border-radius: var(--r-md);
+  background: var(--paper-2);
+}
+.start__lead { font-size: var(--t-sm); color: var(--ink-2); margin-inline-end: auto; }
+.start__file { cursor: pointer; }
+.start__msg { font-size: var(--t-xs); color: var(--ink-3); font-family: var(--mono); }
+.start[data-msg=""] .start__msg { display: none; }
+

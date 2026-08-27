@@ -1,0 +1,5 @@
+# Wrangler 4 refuses to run on Node < 22, and a global pin of 20 is common.
+# Without this, `npm run dev` fails with a version error that looks like a
+# broken install rather than a version mismatch.
+[tools]
+node = "22"

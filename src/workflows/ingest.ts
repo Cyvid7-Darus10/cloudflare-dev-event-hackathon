@@ -1,5 +1,6 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import type { ExtractedInvoice, LineReview, ReviewSession } from "../shared/contracts";
+import type { ReviewSessionDO } from "../session/ReviewSession.ts";
 import type { IngestParams } from "../ingest/upload";
 import { documentToMarkdown, extractInvoice } from "../ingest/extract";
 import demoInvoice from "../../fixtures/invoice-a.json";
@@ -74,6 +75,8 @@ interface IngestEnv {
   DB: D1Database;
   /** AI Gateway token, set as a Worker var. Never in git. */
   HACKATHON_AI_TOKEN: string;
+  /** Workstream D's session objects. Seeding one is what makes it readable. */
+  REVIEW_SESSION: DurableObjectNamespace<ReviewSessionDO>;
 }
 
 export class IngestWorkflow extends WorkflowEntrypoint<IngestEnv, IngestParams> {
@@ -109,8 +112,19 @@ export class IngestWorkflow extends WorkflowEntrypoint<IngestEnv, IngestParams> 
           resolution: "pending" as const,
         })),
 
-      // Zuriel (workstream D) lands here at integration.
-      seedSession: async () => {},
+      /*
+       * Hand the finished session to D's Durable Object.
+       *
+       * This was a no-op stub, so the workflow built a correct session and
+       * then discarded it: upload answered 202 with a sessionId and
+       * GET /api/sessions/:id answered 404 forever after. Named by sessionId,
+       * which is the same name the API reads by.
+       */
+      seedSession: async (session) => {
+        await step.do("seedSession", async () => {
+          await env.REVIEW_SESSION.getByName(session.sessionId).seed(session);
+        });
+      },
 
       markDocument: async (docId, vendor, status) => {
         await env.DB.prepare(`UPDATE documents SET vendor = ?, status = ? WHERE doc_id = ?`)

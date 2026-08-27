@@ -11,20 +11,46 @@
  */
 
 /**
- * Person A's fixture is the source of truth. The copy under `public/` only
- * exists so this page still runs when served on its own, before the assets
- * directory is decided.
+ * Fixtures, for when there is no live session to read.
+ *
+ * The board stays demoable on its own: open it with no `?session=` and it
+ * still shows a full invoice. That is what let this screen get built before
+ * ingest or the standard existed, and it is the fallback if the model
+ * misbehaves on stage.
  */
 const FIXTURES = ["/fixtures/session-a.json", "./fixtures/session-a.json"];
 
-/** Where the session comes from. Swapped for D's socket at integration. */
+/** The session id in the URL, when one is being reviewed for real. */
+const sessionIdFromUrl = () => new URLSearchParams(location.search).get("session");
+
+/**
+ * Where the session comes from.
+ *
+ * With `?session=<id>`, workstream D's API. Without one, the fixture. A live
+ * session that 404s is reported rather than silently falling back, because a
+ * reviewer who followed a link to a real document should not be shown someone
+ * else's sample data and left to notice.
+ */
 async function loadSession() {
+  const id = sessionIdFromUrl();
+  if (id) {
+    const res = await fetch(`/api/sessions/${encodeURIComponent(id)}`);
+    if (!res.ok) {
+      throw new Error(
+        res.status === 404
+          ? `No session ${id}. It may still be extracting, or the link is stale.`
+          : `The session API answered ${res.status}.`
+      );
+    }
+    return res.json();
+  }
+
   for (const url of FIXTURES) {
     try {
       const res = await fetch(url);
       if (res.ok) return await res.json();
     } catch {
-      // Try the next one. A 404 here is expected in one of the two layouts.
+      // Expected in one of the two layouts. Try the next.
     }
   }
   throw new Error("Could not load a session fixture");
@@ -45,6 +71,8 @@ const state = {
   usedKeys: false,
   /** Set when a key cannot apply here, so the stall explains itself. */
   blocked: null,
+  /** True while a live session's socket is attached. */
+  live: false,
 };
 
 /* ---------- helpers ---------- */
@@ -125,6 +153,12 @@ function board(s) {
         <span>${esc(inv.invoiceNumber)}</span><span>·</span>
         <span>${esc(inv.issueDate)}</span><span>·</span>
         <span>${money(inv.totals.total, inv.currency)}</span>
+        <span>·</span>
+        ${
+          sessionIdFromUrl()
+            ? `<span class="src src--${state.live ? "live" : "off"}">${state.live ? "live" : "reconnecting"}</span>`
+            : `<span class="src src--sample">sample invoice</span>`
+        }
       </div>
     </div>
 
@@ -519,6 +553,14 @@ function wire() {
       state.editing.set(i.dataset.draft, d);
     })
   );
+  const up = document.getElementById("upload");
+  if (up) up.addEventListener("change", () => {
+    if (up.files?.[0]) void startReview(up.files[0]);
+  });
+
+  const demo = document.getElementById("demo-run");
+  if (demo) demo.addEventListener("click", () => void startReview(null));
+
   const pub = document.getElementById("publish");
   if (pub) pub.addEventListener("click", () => { state.confirming = true; render(); });
 
@@ -663,6 +705,127 @@ function drawGuides() {
 
 addEventListener("resize", drawGuides);
 
+/* ---------- starting a real review ---------- */
+
+/**
+ * Start a review from a document.
+ *
+ * `POST /api/documents` answers 202 with a sessionId before extraction has
+ * finished, so this hands off to `?session=<id>` and lets the board follow the
+ * work as it lands rather than blocking on the model.
+ */
+async function startReview(file) {
+  /* Written straight into the node. attr() only reads an element's own
+     attribute, so styling it off a parent's data-msg would never render. */
+  const say = (m) => {
+    const strip = document.querySelector(".start");
+    const slot = document.querySelector(".start__msg");
+    if (strip) strip.dataset.msg = m;
+    if (slot) slot.textContent = m;
+  };
+
+  say("Uploading…");
+  try {
+    let res;
+    if (file) {
+      const form = new FormData();
+      form.append("file", file);
+      res = await fetch("/api/documents", { method: "POST", body: form });
+    } else {
+      // Bryan's stage escape hatch: seeds from the fixture, no model involved.
+      res = await fetch("/api/documents?demo=1", { method: "POST" });
+    }
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      say(body.error ?? `Upload failed (${res.status}).`);
+      render();
+      return;
+    }
+
+    const { sessionId } = await res.json();
+    location.search = `?session=${encodeURIComponent(sessionId)}`;
+  } catch (err) {
+    say(`Could not reach the upload endpoint: ${err instanceof Error ? err.message : String(err)}`);
+    render();
+  }
+}
+
+/** Offered only on the sample board: a real session is already under review. */
+function startStrip() {
+  if (sessionIdFromUrl()) return "";
+  return `
+    <div class="start" data-msg="">
+      <span class="start__lead">You are looking at a sample invoice.</span>
+      <label class="act act--doc start__file">
+        Upload an invoice
+        <input type="file" id="upload" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" hidden />
+      </label>
+      <button class="act" id="demo-run">Use the demo invoice</button>
+      <span class="start__msg"></span>
+    </div>
+  `;
+}
+
+/* ---------- live ---------- */
+
+/**
+ * Follow the session over a WebSocket.
+ *
+ * The Durable Object broadcasts to every open socket, so two reviewers on one
+ * invoice see the same board. Only runs against a real session: there is
+ * nothing to follow on a fixture.
+ *
+ * Deliberately does not touch `state.cursor`. Someone else resolving a line
+ * must not move the line you are pointed at out from under you mid-keystroke.
+ */
+function follow() {
+  const id = sessionIdFromUrl();
+  if (!id) return;
+
+  const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}` +
+    `/api/sessions/${encodeURIComponent(id)}/ws`;
+
+  let socket;
+  try {
+    socket = new WebSocket(url);
+  } catch {
+    return; // The board still works; it just will not update on its own.
+  }
+
+  socket.addEventListener("message", (event) => {
+    let msg;
+    try {
+      msg = JSON.parse(event.data);
+    } catch {
+      return;
+    }
+
+    if (msg.type === "session" && msg.session) {
+      state.session = msg.session;
+      state.live = true;
+      render();
+      return;
+    }
+
+    /* A single line changed elsewhere. Patch that one rather than replacing
+       the session, so an editor open on another line is not thrown away. */
+    if (msg.type === "resolved" && msg.lineId && msg.line) {
+      state.session = {
+        ...state.session,
+        lines: state.session.lines.map((l) => (l.lineId === msg.lineId ? msg.line : l)),
+      };
+      state.live = true;
+      render();
+    }
+  });
+
+  socket.addEventListener("close", () => {
+    state.live = false;
+    render();
+  });
+}
+
 /* ---------- keyboard ---------- */
 
 /**
@@ -778,6 +941,7 @@ loadSession()
   .then((s) => {
     state.session = s;
     render();
+    follow();
   })
   .catch((err) => {
     document.getElementById("root").innerHTML =
