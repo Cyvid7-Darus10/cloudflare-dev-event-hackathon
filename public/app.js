@@ -569,7 +569,11 @@ function barHtml(s) {
   /* The confirm sheet carries its own publish button. Two on screen at once
      would leave the reviewer guessing which one is armed. */
   if (state.confirming) {
-    return `<span class="bar__n">Review what will be written, then publish from the sheet above.</span>`;
+    return `<span class="bar__n">${
+      state.publishedOk
+        ? "Written. Open the corrected invoice above, or go back to the board."
+        : "Review what will be written, then publish from the sheet above."
+    }</span>`;
   }
   return `
     <span class="bar__n">
