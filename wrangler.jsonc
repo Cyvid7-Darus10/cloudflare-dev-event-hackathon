@@ -17,6 +17,16 @@
   // So a deployed URL can say which version it is running.
   "version_metadata": { "binding": "VERSION" },
 
+  // Workstream D: one object per review session, holding flag state and the
+  // WebSocket the flag board watches. SQLite-backed so it can hold an audit
+  // trail alongside the session.
+  "durable_objects": {
+    "bindings": [{ "name": "REVIEW_SESSION", "class_name": "ReviewSessionDO" }]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["ReviewSessionDO"] }
+  ],
+
   "observability": { "enabled": true }
 
   // Bindings still to come — see the shape in plan/stack.md:
