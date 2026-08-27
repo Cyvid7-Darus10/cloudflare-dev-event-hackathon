@@ -214,7 +214,7 @@
 <!-- 11 -->
 <section class="s">
   <p class="eyebrow">Cloudflare services</p>
-  <h2><span class="dim">Ten bindings carrying the pipeline.</span>Each one called in code, not just attached.</h2>
+  <h2><span class="dim">Eleven bindings carrying the pipeline.</span>Each one called in code, not just attached.</h2>
   <div class="tw">
     <table>
       <thead><tr><th>Service</th><th>What it does here</th><th>Evidence</th></tr></thead>
@@ -227,7 +227,8 @@
         <tr><td class="k">D1</td><td>The catalogue, its aliases, its version history and the audit log.</td><td><code>migrations/0001_init.sql</code></td></tr>
         <tr><td class="k">KV</td><td>The catalogue snapshot the matcher reads first, with D1 as the fallback.</td><td><code>src/matching/live.ts</code></td></tr>
         <tr><td class="k">Vectorize</td><td>Tier 3 of the ladder: embedded descriptions, nearest catalogue entry above 0.82.</td><td><code>src/matching/embeddings.ts</code></td></tr>
-        <tr><td class="k">R2</td><td>Original uploads. Publish serves HTML rather than writing a PDF back.</td><td><code>env.DOCS.put()</code></td></tr>
+        <tr><td class="k">Browser Run</td><td>The corrected invoice rendered to PDF, cached by content key so a second publish is free.</td><td><code>src/api/publish/pdf.ts</code></td></tr>
+        <tr><td class="k">R2</td><td>Original uploads, and the published PDFs read back out of it.</td><td><code>env.DOCS.put()</code></td></tr>
         <tr><td class="k">Static Assets</td><td>The flag board, served before the Worker runs.</td><td><code>run_worker_first</code></td></tr>
       </tbody>
     </table>
@@ -237,20 +238,19 @@
 <!-- 12 -->
 <section class="s">
   <p class="eyebrow">What we cut, and why</p>
-  <h2><span class="dim">Two more are bound and reachable.</span>They are not doing work yet.</h2>
-  <p class="lede">We wrote a drop ladder before we started and then followed it. These two sat at the top of it.</p>
+  <h2><span class="dim">One is bound and reachable.</span>It is not doing work yet.</h2>
+  <p class="lede">We wrote a drop ladder before we started and then followed it. This one sat at the top, and it is the only rung we never had to climb back down.</p>
   <div class="tw">
     <table>
       <thead><tr><th>Service</th><th>Status</th><th>What we did instead</th></tr></thead>
       <tbody>
         <tr><td class="k">Queues</td><td><span class="p p--off">bound, unused</span></td><td>Bulk upload never became the story. One invoice at a time carries the demo.</td></tr>
-        <tr><td class="k">Browser Run</td><td><span class="p p--off">bound, unused</span></td><td>The corrected invoice is styled HTML with a print stylesheet. Ctrl+P is a real PDF, and it costs no rate limit.</td></tr>
       </tbody>
     </table>
   </div>
-  <p class="note">Two rows left this table during the build rather than joining it. The matcher and the write-back landed late but real: the ladder runs live against the KV snapshot with D1 as fallback, semantic match hits Vectorize above the 0.82 floor, and an audit row claims <code>persisted</code> only after its D1 write succeeds.</p>
+  <p class="note">Three rows left this table during the build rather than joining it. The matcher and the write-back landed late but real: the ladder runs live against the KV snapshot with D1 as fallback, semantic match hits Vectorize above the 0.82 floor, and an audit row claims <code>persisted</code> only after its D1 write succeeds. Browser Run went the same way: publish renders a real PDF into R2, and the print stylesheet is now the fallback rather than the plan.</p>
   <div class="grow"></div>
-  <p class="quote">We would rather tell you two bindings are idle than dress them up as load-bearing.</p>
+  <p class="quote">We would rather tell you one binding is idle than dress it up as load-bearing.</p>
 </section>
 
 <!-- 13 -->
@@ -263,7 +263,7 @@
       <thead><tr><th>Owner</th><th>Workstream</th><th>Owns</th></tr></thead>
       <tbody>
         <tr><td class="k">Siva</td><td>Platform</td><td>Deploy, every binding, the D1 schema, the contract and the fixtures.</td></tr>
-        <tr><td class="k">Bryan</td><td>Ingest</td><td>Upload, R2, the Workflow, extraction into a conforming invoice.</td></tr>
+        <tr><td class="k">Bryan</td><td>Ingest</td><td>Upload, R2, the ingest agent, extraction into a conforming invoice.</td></tr>
         <tr><td class="k">Michelle</td><td>Match &amp; diff</td><td>The matching ladder, the field diff, and the write-back loop.</td></tr>
         <tr><td class="k">Zuriel</td><td>Session &amp; publish</td><td>The Durable Object, the HTTP and WebSocket API, the corrected invoice.</td></tr>
         <tr><td class="k">Cyrus</td><td>Review UI</td><td>The flag board, the Standard tab, upload through to publish.</td></tr>
@@ -282,7 +282,7 @@
     <li><div><b>Three flags fire</b><span>A stale price, a unit of measure worth real money at that quantity, and a product name nothing recognises.</span></div></li>
     <li><div><b>Decide</b><span>Correct the invoice on one. Update the standard on another. The standard was out of date; now it is not.</span></div></li>
     <li><div><b>Show the audit trail</b><span>Every change, who made it, when, and from what to what.</span></div></li>
-    <li><div><b>Publish</b><span>The corrected invoice, showing which lines moved, why, and the total that changed. Integer cents, a content hash, and a print stylesheet that gives a real PDF.</span></div></li>
+    <li><div><b>Publish</b><span>The corrected invoice, showing which lines moved, why, and the total that changed. Integer cents, a content hash, and a real PDF from Browser Run, cached in R2.</span></div></li>
     <li><div><b>Then invoice B</b><span>Same vendor, same odd wording. The names that needed a person last time hit the alias tier this time. That is the standard proving it learned.</span></div></li>
   </ol>
 </section>
