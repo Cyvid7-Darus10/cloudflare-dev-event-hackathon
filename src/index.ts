@@ -10,6 +10,12 @@
  * rather than by a green build.
  */
 
+import { handleAudit, handleSessions, handleStandard } from "./api/sessions.ts";
+
+// The Durable Object class must be exported from the Worker entrypoint for the
+// runtime to find it. Its implementation is workstream D, in src/session/.
+export { ReviewSessionDO } from "./session/ReviewSession.ts";
+
 const SERVICE = "rectify";
 
 const json = (body: unknown, status = 200): Response =>
@@ -30,6 +36,13 @@ export default {
 
     try {
       if (pathname === "/api/health") return health(env);
+      if (pathname === "/api/standard") return handleStandard(env);
+      if (pathname === "/api/audit") return handleAudit(env, new URL(request.url));
+
+      // Workstream D: the review session, its WebSocket, and publish.
+      const session = await handleSessions(request, env, pathname);
+      if (session) return session;
+
 
       return json({ error: `No route for ${request.method} ${pathname}` }, 404);
     } catch (cause) {
