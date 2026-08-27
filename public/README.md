@@ -85,7 +85,3 @@ Three things this screen ran into. Detail in the review.
 - The extraction screen cannot tell a failed Workflow from a slow one — the
   session API only answers 404 or the session. After a couple of minutes it
   says so and offers a restart, but a status endpoint would say it sooner.
-- Live updates currently fail at the handshake: `withSecurity()` in
-  `src/platform/safety.ts` reconstructs the 101 upgrade response, which
-  `new Response()` rejects, so `/ws` answers 500. Owner: A. The board shows
-  "reconnecting" and retries every 3 s until it is fixed.
