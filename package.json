@@ -19,14 +19,15 @@
     "verify": "node scripts/verify.mjs https://rectify.cloudflare-hackathon.workers.dev"
   },
   "devDependencies": {
-    "typescript": "^5.7.0",
-    "wrangler": "^4.86.0",
     "@cloudflare/vite-plugin": "^1.54.0",
     "@cloudflare/vitest-plugin": "^1.1.0",
+    "typescript": "^5.7.0",
     "vite": "^7.0.0",
-    "vite-plus": "^0.3.0"
+    "vite-plus": "^0.3.0",
+    "wrangler": "^4.86.0"
   },
   "dependencies": {
+    "agents": "^0.21.0",
     "zod": "^4.4.3"
   }
 }
