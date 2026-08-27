@@ -59,6 +59,8 @@ const state = {
   publishing: false,
   /** True once a publish succeeded: the sheet becomes a receipt, not a form. */
   publishedOk: false,
+  /** Figures read back after publishing, so the receipt can say what changed. */
+  receipt: null,
   /**
    * Set while a session exists only as a 202: `{ sessionId, since, filename,
    * trouble }`. The upload answered before extraction ran, so the page shows
@@ -174,7 +176,8 @@ function board(s) {
         </div>
         <div class="prog__t" role="progressbar" aria-valuenow="${done}" aria-valuemin="0"
              aria-valuemax="${s.lines.length}" aria-label="Lines resolved">
-          <div class="prog__f" style="width:${pct}%"></div>
+          <!-- Width is applied in wire(): the CSP bans style attributes. -->
+          <div class="prog__f" data-pct="${pct}"></div>
         </div>
       </div>
       ${
@@ -242,7 +245,7 @@ function unmatchedCard(r, line) {
         <span class="st st--unmatched">unmatched</span>
       </div>
       <p class="why">${esc(why)}</p>
-      <div class="agrees__list" style="padding:0 var(--s-3) var(--s-2)">
+      <div class="agrees__list">
         ${shown
           .map((f) => `<div class="agrees__row"><b>${esc(f)}</b><span>${show(line?.[f] ?? null)}</span></div>`)
           .join("")}
@@ -487,8 +490,12 @@ function confirmSheet(s) {
 
   return `
     <div class="panel">
-      <h2>Before this is written</h2>
-      <p>Nothing has changed yet. Publishing does two separate things.</p>
+      <h2>${state.publishedOk ? "Written" : "Before this is written"}</h2>
+      <p>${
+        state.publishedOk
+          ? "The standard has been updated and the corrected invoice is ready."
+          : "Nothing has changed yet. Publishing does two separate things."
+      }</p>
 
       <div class="cf">
         <section class="cf__half">
@@ -504,11 +511,14 @@ function confirmSheet(s) {
       </div>
 
       ${state.published ? `<p class="cf__result ${state.publishedOk ? "cf__result--ok" : ""}" role="status">${esc(state.published)}</p>` : ""}
+      ${state.publishedOk ? receipt(s) : ""}
 
       <div class="cf__acts">
         ${
           state.publishedOk
-            ? `<button class="act" id="confirm-back">Back to the board</button>`
+            ? `<a class="act act--primary" href="/api/sessions/${encodeURIComponent(s.sessionId)}/publish"
+                  target="_blank" rel="noopener">Open the corrected invoice</a>
+               <button class="act" id="confirm-back">Back to the board</button>`
             : `<button class="act act--primary" id="confirm-publish" ${state.publishing ? "disabled" : ""}>
                  ${state.publishing ? "Publishing…" : "Publish and write back"}
                </button>
@@ -516,6 +526,39 @@ function confirmSheet(s) {
         }
       </div>
     </div>
+  `;
+}
+
+/**
+ * What publishing actually did.
+ *
+ * A sentence saying it worked is not a result. These are the figures the
+ * publish endpoint hands back, so a reviewer can see the money move and check
+ * it against what they decided before anyone sends the document on.
+ */
+function receipt(s) {
+  const r = state.receipt;
+  if (!r) return "";
+
+  const cur = s.invoice.currency;
+  const delta = (r.correctedTotal ?? 0) - (r.originalTotal ?? 0);
+  const minor = (n) => money((n ?? 0) / 100, cur);
+
+  return `
+    <dl class="rc">
+      <div><dt>Invoice</dt><dd>${esc(r.invoiceNumber ?? "")}</dd></div>
+      <div><dt>As billed</dt><dd>${minor(r.originalTotal)}</dd></div>
+      <div><dt>As corrected</dt><dd class="rc__now">${minor(r.correctedTotal)}</dd></div>
+      <div><dt>Difference</dt><dd class="${delta === 0 ? "" : "rc__delta"}">
+        ${delta === 0 ? "none" : `${delta > 0 ? "+" : "−"}${minor(Math.abs(delta))}`}
+      </dd></div>
+      <div><dt>Lines changed</dt><dd>${r.changedLineCount ?? 0}</dd></div>
+      ${
+        (r.unresolvedCount ?? 0) > 0
+          ? `<div><dt>Left unresolved</dt><dd class="rc__delta">${r.unresolvedCount}</dd></div>`
+          : ""
+      }
+    </dl>
   `;
 }
 
@@ -543,6 +586,10 @@ function barHtml(s) {
 /* ---------- events ---------- */
 
 function wire() {
+  /* The CSP has no unsafe-inline, so widths land through the CSSOM. */
+  const fill = document.querySelector(".prog__f");
+  if (fill) fill.style.width = `${fill.dataset.pct}%`;
+
   document.querySelectorAll("[data-resolve]").forEach((b) =>
     b.addEventListener("click", () => resolve(b.dataset.line, b.dataset.resolve))
   );
@@ -716,11 +763,27 @@ async function publish() {
       body: JSON.stringify(body),
     });
     state.publishedOk = res.ok;
-    state.published = res.ok
-      ? "Published. The corrected invoice is ready and the standard has been updated."
-      : `The publish endpoint answered ${res.status}. Workstream D owns POST /api/sessions/:id/publish; until it exists there is nothing for this to call.`;
+
+    if (res.ok) {
+      /* The POST answers with the corrected invoice as HTML, and this was
+         reading res.ok and dropping the body. A reviewer resolved every line,
+         pressed publish, and got a sentence saying it worked while the
+         document itself, the point of the whole exercise, went in the bin.
+         Read the figures back so the sheet can say what changed, and offer
+         the document. */
+      state.receipt = await fetch(
+        `/api/sessions/${state.session.sessionId}/publish?format=json`
+      )
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+      state.published = null;
+    } else {
+      state.published = `The publish endpoint answered ${res.status}.`;
+    }
   } catch (err) {
-    state.published = `Could not reach the publish endpoint: ${err instanceof Error ? err.message : String(err)}. Workstream D owns it.`;
+    state.published = `Could not reach the publish endpoint: ${
+      err instanceof Error ? err.message : String(err)
+    }`;
   }
   state.publishing = false;
   render();
@@ -744,12 +807,22 @@ function drawGuides() {
   const xs = [r.left - inset, r.right + inset];
   const ys = [96, window.innerHeight - 84];
 
-  host.innerHTML =
-    xs.map((x) => `<span class="guides__v" style="inset-inline-start:${x}px"></span>`).join("") +
-    ys.map((y) => `<span class="guides__h" style="inset-block-start:${y}px"></span>`).join("") +
-    xs
-      .flatMap((x) => ys.map((y) => `<span class="guides__node" style="inset-inline-start:${x}px;inset-block-start:${y}px"></span>`))
-      .join("");
+  /* Built with the CSSOM, not style attributes: the CSP has no unsafe-inline,
+     so a style attribute in markup is silently dropped and the layer vanishes. */
+  const span = (className, styles) => {
+    const el = document.createElement("span");
+    el.className = className;
+    for (const [prop, value] of Object.entries(styles)) el.style[prop] = value;
+    return el;
+  };
+
+  host.replaceChildren(
+    ...xs.map((x) => span("guides__v", { insetInlineStart: `${x}px` })),
+    ...ys.map((y) => span("guides__h", { insetBlockStart: `${y}px` })),
+    ...xs.flatMap((x) =>
+      ys.map((y) => span("guides__node", { insetInlineStart: `${x}px`, insetBlockStart: `${y}px` }))
+    ),
+  );
 }
 
 addEventListener("resize", drawGuides);
