@@ -39,6 +39,12 @@ const state = {
   confirming: false,
   /** Set when publishing runs, so the page can say what actually happened. */
   published: null,
+  /** The line the keyboard is pointed at. Triage is a queue, not a page. */
+  cursor: 0,
+  /** True once a key has been used, so the hint can stop taking up room. */
+  usedKeys: false,
+  /** Set when a key cannot apply here, so the stall explains itself. */
+  blocked: null,
 };
 
 /* ---------- helpers ---------- */
@@ -140,11 +146,11 @@ function board(s) {
       }
     </div>
 
-    ${s.lines.map((r) => lineCard(s, r)).join("")}
+    ${s.lines.map((r, i) => lineCard(s, r, i === state.cursor)).join("")}
   `;
 }
 
-function lineCard(s, r) {
+function lineCard(s, r, isCursor) {
   const line = lineOf(s, r.lineId);
   const resolved = r.resolution !== "pending";
   const unmatched = r.matchMethod === "none";
@@ -152,7 +158,8 @@ function lineCard(s, r) {
   const editing = state.editing.has(r.lineId);
 
   return `
-    <section class="line" data-res="${r.resolution}">
+    <section class="line" data-res="${r.resolution}" data-line-id="${r.lineId}"
+             ${isCursor ? 'data-cursor="true"' : ""}>
       <header class="line__head">
         <span class="line__id">${esc(r.lineId)}</span>
         <span class="line__desc">${esc(line?.description ?? "")}</span>
@@ -174,7 +181,7 @@ function lineCard(s, r) {
         }
       </div>
 
-      ${editing ? editor(s, r) : resolutionRow(r, unmatched, exposure, s.invoice.currency)}
+      ${editing ? editor(s, r) : resolutionRow(r, unmatched, exposure, s.invoice.currency, isCursor)}
     </section>
   `;
 }
@@ -268,21 +275,26 @@ function flagCard(f, r) {
  * `accept_standard` is disabled when nothing matched, because there is no
  * standard to accept. Offering it would be a button that cannot mean anything.
  */
-function resolutionRow(r, unmatched, exposure, currency) {
+function resolutionRow(r, unmatched, exposure, currency, isCursor) {
   if (r.resolution !== "pending") {
-    return `<div class="res"><button class="act act--undo" data-undo="${r.lineId}">Undo</button></div>`;
+    return `<div class="res"><button class="act act--undo" data-undo="${r.lineId}">Undo <kbd>u</kbd></button></div>`;
   }
   return `
     <div class="res">
       <button class="act" data-resolve="accept_standard" data-line="${r.lineId}" ${unmatched ? "disabled" : ""}>
-        Correct the invoice
+        Correct the invoice <kbd>1</kbd>
       </button>
       <button class="act act--doc" data-resolve="accept_document" data-line="${r.lineId}" ${unmatched ? "disabled" : ""}>
-        Update the standard
+        Update the standard <kbd>2</kbd>
       </button>
       <button class="act" data-edit="${r.lineId}">
-        ${unmatched ? "Assign a SKU" : "Enter different values"}
+        ${unmatched ? "Assign a SKU" : "Enter different values"} <kbd>3</kbd>
       </button>
+      ${
+        isCursor && state.blocked
+          ? `<p class="hint hint--blocked" role="status">${esc(state.blocked)}</p>`
+          : ""
+      }
       ${
         unmatched
           ? `<p class="hint"><b>Nothing in the standard matches this line.</b> There is no standard value to accept and no invoice value to trust, so assign a SKU to teach it or leave the line for a buyer.</p>`
@@ -546,7 +558,46 @@ function resolve(lineId, resolution, finalValues) {
         : l
     ),
   };
+  /* Deciding a line is the signal to move on. Undo is the exception: staying
+     put is the whole point of pressing it. */
+  if (resolution !== "pending") advance(lineId);
   render();
+  focusCursor();
+}
+
+/**
+ * Move to the next line that still needs a person.
+ *
+ * Wraps back to the top, because a reviewer who skipped one early should not
+ * have to scroll up to find it. Lands on the publish button when nothing is
+ * left, so the last decision flows straight into finishing.
+ */
+function advance(fromLineId) {
+  const lines = state.session.lines;
+  const from = lines.findIndex((l) => l.lineId === fromLineId);
+  const order = [
+    ...lines.slice(from + 1),
+    ...lines.slice(0, from + 1),
+  ];
+  const next = order.find((l) => l.resolution === "pending");
+  state.cursor = next ? lines.findIndex((l) => l.lineId === next.lineId) : from;
+  state.atEnd = !next;
+}
+
+/** Bring the pointed-at line into view without yanking the page around. */
+function focusCursor() {
+  if (state.confirming) return;
+  const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (state.atEnd) {
+    document.getElementById("publish")?.focus({ preventScroll: true });
+    document.getElementById("publish")?.scrollIntoView({
+      block: "center",
+      behavior: smooth ? "smooth" : "auto",
+    });
+    return;
+  }
+  const el = document.querySelector('[data-cursor="true"]');
+  el?.scrollIntoView({ block: "center", behavior: smooth ? "smooth" : "auto" });
 }
 
 /**
@@ -611,6 +662,100 @@ function drawGuides() {
 }
 
 addEventListener("resize", drawGuides);
+
+/* ---------- keyboard ---------- */
+
+/**
+ * Triage from the keyboard.
+ *
+ * Forty lines is a lot of mouse travel, and the decision itself takes under a
+ * second. Deliberately single keys with no modifier: this screen has one job
+ * and nothing else is competing for them.
+ */
+const KEYS = {
+  "1": "accept_standard",
+  "2": "accept_document",
+};
+
+addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+  /* Never steal a key from someone typing a correction. */
+  const t = e.target;
+  const typing =
+    t instanceof HTMLElement &&
+    (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+  if (typing) {
+    if (e.key === "Escape") document.querySelector("[data-cancel]")?.click();
+    return;
+  }
+
+  if (state.confirming || !state.session) return;
+
+  const line = state.session.lines[state.cursor];
+  if (!line) return;
+
+  const key = e.key.toLowerCase();
+
+  if (KEYS[key]) {
+    const btn = document.querySelector(
+      `[data-resolve="${KEYS[key]}"][data-line="${line.lineId}"]`
+    );
+    e.preventDefault();
+    state.usedKeys = true;
+    if (btn && !btn.disabled) {
+      state.blocked = null;
+      btn.click();
+      return;
+    }
+    /* Silence here reads as a broken keyboard. Nothing matched this line, so
+       there is no standard to accept and no invoice value to trust: say that
+       and point at the key that does apply. */
+    state.blocked =
+      "Nothing in the standard matches this line, so there is no value to accept either way. Press 3 to assign a SKU.";
+    render();
+    focusCursor();
+    return;
+  }
+
+  state.blocked = null;
+
+  if (key === "3" || key === "e") {
+    const btn = document.querySelector(`[data-edit="${line.lineId}"]`);
+    if (btn) {
+      e.preventDefault();
+      state.usedKeys = true;
+      btn.click();
+      document.querySelector(".editor input")?.focus();
+    }
+    return;
+  }
+
+  if (key === "u") {
+    const btn = document.querySelector(`[data-undo="${line.lineId}"]`);
+    if (btn) { e.preventDefault(); state.usedKeys = true; btn.click(); }
+    return;
+  }
+
+  if (key === "j" || key === "arrowdown") {
+    e.preventDefault();
+    state.usedKeys = true;
+    state.cursor = Math.min(state.cursor + 1, state.session.lines.length - 1);
+    state.atEnd = false;
+    render();
+    focusCursor();
+    return;
+  }
+
+  if (key === "k" || key === "arrowup") {
+    e.preventDefault();
+    state.usedKeys = true;
+    state.cursor = Math.max(state.cursor - 1, 0);
+    state.atEnd = false;
+    render();
+    focusCursor();
+  }
+});
 
 /* ---------- boot ---------- */
 

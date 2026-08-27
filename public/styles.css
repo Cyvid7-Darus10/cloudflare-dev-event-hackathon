@@ -436,3 +436,54 @@ td.n { color: var(--ink); }
 .act, .cta, .tabs, .editor input { border-color: var(--edge); }
 .act--primary, .cta { border-color: var(--doc); }
 .act--doc { border-color: var(--doc-edge); }
+
+/* ---- keyboard triage ---- */
+
+/* The line the keyboard is pointed at. A rail on the leading edge rather than
+   a full outline: it has to be findable while scrolling without competing with
+   the flags inside it. */
+.line[data-cursor="true"] {
+  border-color: var(--edge);
+  box-shadow: inset 3px 0 0 var(--doc);
+}
+.line[data-cursor="true"] .line__head { background: var(--doc-soft); }
+
+kbd {
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1;
+  padding: 3px 5px;
+  border: 1px solid var(--edge);
+  border-block-end-width: 2px;
+  border-radius: 3px;
+  background: var(--paper);
+  color: var(--ink-2);
+  margin-inline-start: 6px;
+  vertical-align: middle;
+}
+.act--doc kbd { border-color: var(--doc-edge); }
+.keyhint kbd { margin-inline: 2px; }
+
+.keyhint {
+  margin: 0 0 var(--s-3);
+  padding: 8px var(--s-3);
+  border: 1px dashed var(--rule);
+  border-radius: var(--r-md);
+  font-size: var(--t-xs);
+  color: var(--ink-3);
+  background: var(--paper-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .line[data-cursor="true"] { scroll-behavior: auto; }
+}
+
+/* A key that cannot apply has to say so. Silence reads as a broken keyboard. */
+.hint--blocked {
+  color: var(--lost);
+  background: var(--lost-soft);
+  border: 1px solid var(--lost-edge);
+  border-radius: var(--r-sm);
+  padding: 7px 10px;
+  margin: 0;
+}
