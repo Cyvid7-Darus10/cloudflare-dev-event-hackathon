@@ -43,6 +43,13 @@ processed against it. That is the hard part, and it is what the platform is for.
 | Reprocessing the same document changes nothing | An idempotency key per document |
 | Documents in and out | R2 |
 
+## The team
+
+Bryan, Cyrus, Michelle, Siva, Zuriel.
+
+Work is split five ways in [`plan/`](plan/README.md), with a shared contract the
+five workstreams build against so nobody waits on anybody.
+
 ## Status
 
 Starting point. Code to follow.
