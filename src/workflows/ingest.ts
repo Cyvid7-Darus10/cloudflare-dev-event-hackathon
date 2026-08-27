@@ -104,7 +104,9 @@ export class IngestWorkflow extends WorkflowEntrypoint<IngestEnv, IngestParams> 
           { retries: { limit: 2, delay: "10 seconds", backoff: "exponential" } },
           () =>
             extractInvoice(
-              { fetch: globalThis.fetch, apiToken: env.HACKATHON_AI_TOKEN },
+              // Bound: workerd rejects global fetch called as a method of
+              // anything but the global, with "Illegal invocation".
+              { fetch: globalThis.fetch.bind(globalThis), apiToken: env.HACKATHON_AI_TOKEN },
               { markdown, docId },
             ),
         ),

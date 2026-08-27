@@ -20,10 +20,16 @@ export const GATEWAY_ID = "hackathon";
 export const AI_RUN_URL = `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/ai/run`;
 
 /**
- * Confirm this id through the gateway before the demo — model ids drift, and a
- * deprecated one fails with nothing useful in the response.
+ * The default extraction model.
+ *
+ * Checked against this account's gateway on 27 August 2026: it answers, and it
+ * is available on the plan we are on. Two things that are not true of every id
+ * in the catalogue — `@cf/zai-org/glm-5.3-flash` is Workers Paid only, and
+ * several ids in the model list return an error on this plan.
+ *
+ * Override per call with `ChatTransport.model` rather than editing this.
  */
-export const EXTRACTION_MODEL = "@cf/zai-org/glm-5.3-flash";
+export const EXTRACTION_MODEL = "@cf/mistralai/mistral-small-3.1-24b-instruct";
 
 /** The slice of the `Ai` binding used for markdown conversion. */
 export interface AiLike {
@@ -43,9 +49,25 @@ export interface AiLike {
  * the real `/ai/run` envelope without an account or a token.
  */
 export interface ChatTransport {
+  /**
+   * Must be bound. `globalThis.fetch` called as a method of anything other
+   * than the global throws "Illegal invocation" in workerd, so callers pass
+   * `globalThis.fetch.bind(globalThis)`.
+   */
   fetch: typeof fetch;
   apiToken: string;
+  /** Overrides `EXTRACTION_MODEL`. Model ids drift; swapping one is config. */
+  model?: string;
 }
+
+/**
+ * Completion tokens to allow.
+ *
+ * The endpoint defaults to 256, which truncates a real invoice partway through
+ * the second line item. The reply then fails to parse and looks exactly like a
+ * model that cannot follow a schema, which is the wrong thing to go and fix.
+ */
+const MAX_TOKENS = 4096;
 
 /** Generated from the zod schema, so the constraint and the check cannot drift. */
 const INVOICE_JSON_SCHEMA = z.toJSONSchema(ExtractedInvoiceObject, { io: "input" });
@@ -150,7 +172,11 @@ export async function extractInvoice(
         : []),
     ];
 
-    const response = await transport.fetch(AI_RUN_URL, {
+    // Destructured, not called as `transport.fetch(...)`: the method form
+    // passes `transport` as `this`, which workerd rejects for global fetch.
+    const { fetch: send } = transport;
+
+    const response = await send(AI_RUN_URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${transport.apiToken}`,
@@ -158,10 +184,11 @@ export async function extractInvoice(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: EXTRACTION_MODEL,
+        model: transport.model ?? EXTRACTION_MODEL,
         input: {
           messages,
           response_format: { type: "json_schema", json_schema: INVOICE_JSON_SCHEMA },
+          max_tokens: MAX_TOKENS,
           // Extraction is copying, not writing. Leave no room for flourish.
           temperature: 0,
         },
@@ -175,6 +202,16 @@ export async function extractInvoice(
     if (!response.ok || payload.success === false) {
       const detail = payload.errors?.map((e) => e.message).join("; ") ?? `HTTP ${response.status}`;
       throw new Error(`AI Gateway call failed: ${detail}`);
+    }
+
+    // Running out of room is not something a repair prompt can fix, and it
+    // reads as malformed JSON if you do not check for it.
+    const finish = (payload as { result?: { choices?: { finish_reason?: string }[] } })
+      ?.result?.choices?.[0]?.finish_reason;
+    if (finish === "length") {
+      throw new Error(
+        `extraction was truncated at ${MAX_TOKENS} tokens — the invoice needs a larger max_tokens`,
+      );
     }
 
     const json = asJson(answerFrom(payload));

@@ -20,6 +20,11 @@ export default defineConfig({
         compatibilityDate: "2026-03-24",
         compatibilityFlags: ["nodejs_compat"],
         r2Buckets: ["DOCS"],
+        bindings: {
+          // Opt-in live check against the real gateway. Empty unless you export
+          // CF_TOKEN, in which case `live.check.test.ts` runs instead of skips.
+          CF_TOKEN: (globalThis as { process?: { env?: Record<string, string> } }).process?.env?.CF_TOKEN ?? "",
+        },
       },
     }),
   ],
