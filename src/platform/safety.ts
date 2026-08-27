@@ -93,6 +93,17 @@ export function corsHeaders(request: Request): Headers {
 }
 
 export function withSecurity(request: Request, response: Response): Response {
+  /*
+   * A WebSocket upgrade cannot be rebuilt.
+   *
+   * It is status 101 carrying a `webSocket` handle, and the Response
+   * constructor only accepts 200-599, so rebuilding one throws RangeError,
+   * the entry point catches it and answers 500, and every socket handshake
+   * fails. A 101 cannot carry these headers anyway: there is no body for a
+   * content policy to apply to, and the connection is already established.
+   */
+  if (response.status === 101 || response.webSocket) return response;
+
   const headers = new Headers(response.headers);
   for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
     if (!headers.has(key)) headers.set(key, value);
