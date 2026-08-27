@@ -15,7 +15,7 @@
     "migrate:local": "wrangler d1 migrations apply rectify --local",
     "migrate:remote": "wrangler d1 migrations apply rectify --remote",
     "seed-sql": "node scripts/generate-seed.mjs",
-    "make-pdf": "node scripts/make-pdf.mjs",
+    "make-pdf": "node scripts/make-invoices.mjs",
     "verify": "node scripts/verify.mjs https://rectify.cloudflare-hackathon.workers.dev"
   },
   "devDependencies": {
