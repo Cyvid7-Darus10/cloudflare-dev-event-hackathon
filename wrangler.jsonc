@@ -14,6 +14,23 @@
     "run_worker_first": ["/api/*"]
   },
 
+  // Workstream B (ingest). toMarkdown() parses the PDF; the extraction call
+  // goes over REST to /ai/run with cf-aig-gateway-id so it lands in the
+  // hackathon AI Gateway.
+  "ai": { "binding": "AI" },
+
+  "r2_buckets": [
+    { "binding": "DOCS", "bucket_name": "rectify-docs" }
+  ],
+
+  "d1_databases": [
+    { "binding": "DB", "database_name": "rectify", "database_id": "local-dev" }
+  ],
+
+  "workflows": [
+    { "binding": "INGEST", "name": "ingest", "class_name": "IngestWorkflow" }
+  ],
+
   // So a deployed URL can say which version it is running.
   "version_metadata": { "binding": "VERSION" },
 
@@ -29,7 +46,6 @@
 
   "observability": { "enabled": true }
 
-  // Bindings still to come — see the shape in plan/stack.md:
-  //   ai, browser, d1_databases, kv_namespaces, r2_buckets, vectorize,
-  //   queues, durable_objects + migrations, workflows
+  // Still to come — see the shape in plan/stack.md:
+  //   browser, kv_namespaces, vectorize, queues, durable_objects + migrations
 }

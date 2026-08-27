@@ -1,14 +1,29 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022"],
+    // ES2023 for Array.prototype.with, which src/session/ReviewSession.ts uses.
+    "lib": [
+      "ES2023"
+    ],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,
     "noEmit": true,
+    // Workstream D's modules import each other with explicit .ts extensions.
+    // Safe here because nothing is emitted; without it the whole tree fails to
+    // typecheck, which it already did on main before this branch.
+    "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "isolatedModules": true,
-    "types": ["./worker-configuration.d.ts"]
+    "types": [
+      "./worker-configuration.d.ts",
+      "@cloudflare/vitest-plugin"
+    ],
+    "resolveJsonModule": true
   },
-  "include": ["src", "worker-configuration.d.ts"]
+  "include": [
+    "src",
+    "worker-configuration.d.ts",
+    "vitest.config.ts"
+  ]
 }

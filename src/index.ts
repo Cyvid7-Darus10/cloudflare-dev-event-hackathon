@@ -10,10 +10,13 @@
  * rather than by a green build.
  */
 
+import { handleUpload } from "./ingest/upload";
 import { handleAudit, handleSessions, handleStandard } from "./api/sessions.ts";
 
-// The Durable Object class must be exported from the Worker entrypoint for the
-// runtime to find it. Its implementation is workstream D, in src/session/.
+// Both Durable Object classes and the Workflow have to be exported from the
+// entrypoint for the runtime to find them. Implementations live in their
+// owners' directories: workstream B in src/workflows/, D in src/session/.
+export { IngestWorkflow } from "./workflows/ingest";
 export { ReviewSessionDO } from "./session/ReviewSession.ts";
 
 const SERVICE = "rectify";
@@ -43,6 +46,12 @@ export default {
       const session = await handleSessions(request, env, pathname);
       if (session) return session;
 
+
+      // Workstream B. Upload lands here; extraction happens in the Workflow,
+      // so this answers with a sessionId rather than waiting for the model.
+      if (pathname === "/api/documents" && request.method === "POST") {
+        return handleUpload(request, env as never);
+      }
 
       return json({ error: `No route for ${request.method} ${pathname}` }, 404);
     } catch (cause) {
