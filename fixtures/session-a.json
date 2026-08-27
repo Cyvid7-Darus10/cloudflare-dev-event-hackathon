@@ -1,0 +1,574 @@
+{
+  "sessionId": "sess-a-0001",
+  "docId": "doc-a-0001",
+  "invoice": {
+    "docId": "doc-a-0001",
+    "vendor": "Northwind Trading Pte Ltd",
+    "invoiceNumber": "NW-INV-24817",
+    "issueDate": "2026-08-21",
+    "currency": "SGD",
+    "lineItems": [
+      {
+        "lineId": "L0",
+        "rawText": "SKU-2027  Enamel mug 350ml            24 EA   @ 11.20      268.80",
+        "sku": "SKU-2027",
+        "description": "Enamel mug 350ml",
+        "quantity": 24,
+        "unitPrice": 11.2,
+        "lineTotal": 268.8,
+        "uom": "EA"
+      },
+      {
+        "lineId": "L1",
+        "rawText": "SKU-1002  Cold-pressed rapeseed oil 5L  12 CTN  @ 72.90      874.80",
+        "sku": "SKU-1002",
+        "description": "Cold-pressed rapeseed oil 5L",
+        "quantity": 12,
+        "unitPrice": 72.9,
+        "lineTotal": 874.8,
+        "uom": "CTN"
+      },
+      {
+        "lineId": "L2",
+        "rawText": "SKU-3038  Paper straws 200mm            40 EA   @ 31.00    1,240.00",
+        "sku": "SKU-3038",
+        "description": "Paper straws 200mm",
+        "quantity": 40,
+        "unitPrice": 31.0,
+        "lineTotal": 1240.0,
+        "uom": "EA"
+      },
+      {
+        "lineId": "L3",
+        "rawText": "SKU-4471  Widget Pro 2K                  2 EA   @ 289.00     578.00",
+        "sku": "SKU-4471",
+        "description": "Widget Pro 2K",
+        "quantity": 2,
+        "unitPrice": 289.0,
+        "lineTotal": 578.0,
+        "uom": "EA"
+      },
+      {
+        "lineId": "L4",
+        "rawText": "SKU-2078  Linen tea towel pack of 3     15 PACK @ 16.00      250.00",
+        "sku": "SKU-2078",
+        "description": "Linen tea towel pack of 3",
+        "quantity": 15,
+        "unitPrice": 16.0,
+        "lineTotal": 250.0,
+        "uom": "PACK"
+      },
+      {
+        "lineId": "L5",
+        "rawText": "          Sanitiser 5 Litre              6 EA   @ 27.60      165.60",
+        "sku": null,
+        "description": "Sanitiser 5 Litre",
+        "quantity": 6,
+        "unitPrice": 27.6,
+        "lineTotal": 165.6,
+        "uom": "EA"
+      },
+      {
+        "lineId": "L6",
+        "rawText": "          Stainless steel mixing bowl, 28 cm   8 EA @ 19.50   156.00",
+        "sku": null,
+        "description": "Stainless steel mixing bowl, 28 cm",
+        "quantity": 8,
+        "unitPrice": 19.5,
+        "lineTotal": 156.0,
+        "uom": "EA"
+      },
+      {
+        "lineId": "L7",
+        "rawText": "          Assorted seasonal produce crate  3 CRATE @ 145.00   435.00",
+        "sku": null,
+        "description": "Assorted seasonal produce crate",
+        "quantity": 3,
+        "unitPrice": 145.0,
+        "lineTotal": 435.0,
+        "uom": "CRATE"
+      }
+    ],
+    "totals": {
+      "subtotal": 3968.2,
+      "tax": 357.14,
+      "total": 4325.34
+    }
+  },
+  "lines": [
+    {
+      "lineId": "L0",
+      "matchedSku": "SKU-2027",
+      "matchMethod": "exact",
+      "matchScore": 1.0,
+      "resolution": "pending",
+      "flags": [
+        {
+          "field": "sku",
+          "documentValue": "SKU-2027",
+          "standardValue": "SKU-2027",
+          "status": "match",
+          "confidence": 1,
+          "reason": "Exact SKU match."
+        },
+        {
+          "field": "description",
+          "documentValue": "Enamel mug 350ml",
+          "standardValue": "Enamel mug 350ml",
+          "status": "match",
+          "confidence": 1,
+          "reason": "Matches the canonical name."
+        },
+        {
+          "field": "unitPrice",
+          "documentValue": 11.2,
+          "standardValue": 11.2,
+          "status": "match",
+          "confidence": 1,
+          "reason": "Billed at list price."
+        },
+        {
+          "field": "uom",
+          "documentValue": "EA",
+          "standardValue": "EA",
+          "status": "match",
+          "confidence": 1,
+          "reason": "Unit of measure agrees."
+        },
+        {
+          "field": "lineTotal",
+          "documentValue": 268.8,
+          "standardValue": 268.8,
+          "status": "match",
+          "confidence": 1,
+          "reason": "24 x S$11.20 = S$268.80."
+        },
+        {
+          "field": "taxCode",
+          "documentValue": null,
+          "standardValue": "SR",
+          "status": "match",
+          "confidence": 1,
+          "reason": "The invoice states no tax code; the standard's SR applies."
+        }
+      ]
+    },
+    {
+      "lineId": "L1",
+      "matchedSku": "SKU-1002",
+      "matchMethod": "exact",
+      "matchScore": 1.0,
+      "resolution": "pending",
+      "flags": [
+        {
+          "field": "sku",
+          "documentValue": "SKU-1002",
+          "standardValue": "SKU-1002",
+          "status": "match",
+          "confidence": 1,
+          "reason": "Exact SKU match."
+        },
+        {
+          "field": "description",
+          "documentValue": "Cold-pressed rapeseed oil 5L",
+          "standardValue": "Cold-pressed rapeseed oil 5L",
+          "status": "match",
+          "confidence": 1,
+          "reason": "Matches the canonical name."
+        },
+        {
+          "field": "unitPrice",
+          "documentValue": 72.9,
+          "standardValue": 68.4,
+          "status": "mismatch",
+          "confidence": 1,
+          "reason": "Invoice bills S$72.90 against a list price of S$68.40 - 6.6% over, S$54.00 across 12 CTN. If the contracted price has risen, accept the document and the standard learns it."
+        },
+        {
+          "field": "uom",
+          "documentValue": "CTN",
+          "standardValue": "CTN",
+          "status": "match",
+          "confidence": 1,
+          "reason": "Unit of measure agrees."
+        },
+        {
+          "field": "lineTotal",
+          "documentValue": 874.8,
+          "standardValue": 874.8,
+          "status": "match",
+          "confidence": 1,
+          "reason": "12 x S$72.90 = S$874.80; the arithmetic is right even though the price is disputed."
+        },
+        {
+          "field": "taxCode",
+          "documentValue": null,
+          "standardValue": "SR",
+          "status": "match",
+          "confidence": 1,
+          "reason": "The invoice states no tax code; the standard's SR applies."
+        }
+      ]
+    },
+    {
+      "lineId": "L2",
+      "matchedSku": "SKU-3038",
+      "matchMethod": "exact",
+      "matchScore": 1.0,
+      "resolution": "pending",
+      "flags": [
+        {
+          "field": "sku",
+          "documentValue": "SKU-3038",
+          "standardValue": "SKU-3038",
+          "status": "match",
+          "confidence": 1,
+          "reason": "Exact SKU match."
+        },
+        {
+          "field": "description",
+          "documentValue": "Paper straws 200mm",
+          "standardValue": "Paper straws 200mm",
+          "status": "match",
+          "confidence": 1,
+          "reason": "Matches the canonical name."
+        },
+        {
+          "field": "unitPrice",
+          "documentValue": 31.0,
+          "standardValue": 31.0,
+          "status": "match",
+          "confidence": 1,
+          "reason": "Matches the list price - but see the unit of measure."
+        },
+        {
+          "field": "uom",
+          "documentValue": "EA",
+          "standardValue": "CTN",
+          "status": "mismatch",
+          "confidence": 1,
+          "reason": "The S$31.00 list price is per CTN; this line bills it per EA. 40 units at carton price is S$1,240.00 for what the standard prices at S$31.00 a carton."
+        },
+        {
+          "field": "lineTotal",
+          "documentValue": 1240.0,
+          "standardValue": 1240.0,
+          "status": "match",
+          "confidence": 1,
+          "reason": "40 x S$31.00 = S$1,240.00; the arithmetic follows from the wrong unit."
+        },
+        {
+          "field": "taxCode",
+          "documentValue": null,
+          "standardValue": "SR",
+          "status": "match",
+          "confidence": 1,
+          "reason": "The invoice states no tax code; the standard's SR applies."
+        }
+      ]
+    },
+    {
+      "lineId": "L3",
+      "matchedSku": "SKU-4471",
+      "matchMethod": "exact",
+      "matchScore": 1.0,
+      "resolution": "pending",
+      "flags": [
+        {
+          "field": "sku",
+          "documentValue": "SKU-4471",
+          "standardValue": "SKU-4471",
+          "status": "match",
+          "confidence": 1,
+          "reason": "Exact SKU match."
+        },
+        {
+          "field": "description",
+          "documentValue": "Widget Pro 2K",
+          "standardValue": "Pro Series 2000 Controller",
+          "status": "mismatch",
+          "confidence": 1,
+          "reason": "Not the canonical name and not a known alias. Accepting the document records 'Widget Pro 2K' as an alias, so this vendor's naming matches on its own next time."
+        },
+        {
+          "field": "unitPrice",
+          "documentValue": 289.0,
+          "standardValue": 289.0,
+          "status": "match",
+          "confidence": 1,
+          "reason": "Billed at list price."
+        },
+        {
+          "field": "uom",
+          "documentValue": "EA",
+          "standardValue": "EA",
+          "status": "match",
+          "confidence": 1,
+          "reason": "Unit of measure agrees."
+        },
+        {
+          "field": "lineTotal",
+          "documentValue": 578.0,
+          "standardValue": 578.0,
+          "status": "match",
+          "confidence": 1,
+          "reason": "2 x S$289.00 = S$578.00."
+        },
+        {
+          "field": "taxCode",
+          "documentValue": null,
+          "standardValue": "SR",
+          "status": "match",
+          "confidence": 1,
+          "reason": "The invoice states no tax code; the standard's SR applies."
+        }
+      ]
+    },
+    {
+      "lineId": "L4",
+      "matchedSku": "SKU-2078",
+      "matchMethod": "exact",
+      "matchScore": 1.0,
+      "resolution": "pending",
+      "flags": [
+        {
+          "field": "sku",
+          "documentValue": "SKU-2078",
+          "standardValue": "SKU-2078",
+          "status": "match",
+          "confidence": 1,
+          "reason": "Exact SKU match."
+        },
+        {
+          "field": "description",
+          "documentValue": "Linen tea towel pack of 3",
+          "standardValue": "Linen tea towel pack of 3",
+          "status": "match",
+          "confidence": 1,
+          "reason": "Matches the canonical name."
+        },
+        {
+          "field": "quantity",
+          "documentValue": 15,
+          "standardValue": null,
+          "status": "match",
+          "confidence": 1,
+          "reason": "Quantity is the invoice's to state; the standard holds no quantity."
+        },
+        {
+          "field": "unitPrice",
+          "documentValue": 16.0,
+          "standardValue": 16.0,
+          "status": "match",
+          "confidence": 1,
+          "reason": "Billed at list price."
+        },
+        {
+          "field": "uom",
+          "documentValue": "PACK",
+          "standardValue": "PACK",
+          "status": "match",
+          "confidence": 1,
+          "reason": "Unit of measure agrees."
+        },
+        {
+          "field": "lineTotal",
+          "documentValue": 250.0,
+          "standardValue": 240.0,
+          "status": "mismatch",
+          "confidence": 1,
+          "reason": "15 x S$16.00 is S$240.00; the invoice states S$250.00 - S$10.00 over. Arithmetic error on the document, so keep the standard."
+        },
+        {
+          "field": "taxCode",
+          "documentValue": null,
+          "standardValue": "SR",
+          "status": "match",
+          "confidence": 1,
+          "reason": "The invoice states no tax code; the standard's SR applies."
+        }
+      ]
+    },
+    {
+      "lineId": "L5",
+      "matchedSku": "SKU-5048",
+      "matchMethod": "alias",
+      "matchScore": 0.95,
+      "resolution": "pending",
+      "flags": [
+        {
+          "field": "sku",
+          "documentValue": null,
+          "standardValue": "SKU-5048",
+          "status": "match",
+          "confidence": 0.95,
+          "reason": "No SKU on the line; matched on the known alias 'sanitiser 5 litre'."
+        },
+        {
+          "field": "description",
+          "documentValue": "Sanitiser 5 Litre",
+          "standardValue": "Surface sanitiser 5L",
+          "status": "match",
+          "confidence": 0.95,
+          "reason": "A known alias of the canonical name - the standard already learned this one."
+        },
+        {
+          "field": "unitPrice",
+          "documentValue": 27.6,
+          "standardValue": 27.6,
+          "status": "match",
+          "confidence": 1,
+          "reason": "Billed at list price."
+        },
+        {
+          "field": "uom",
+          "documentValue": "EA",
+          "standardValue": "EA",
+          "status": "match",
+          "confidence": 1,
+          "reason": "Unit of measure agrees."
+        },
+        {
+          "field": "lineTotal",
+          "documentValue": 165.6,
+          "standardValue": 165.6,
+          "status": "match",
+          "confidence": 1,
+          "reason": "6 x S$27.60 = S$165.60."
+        },
+        {
+          "field": "taxCode",
+          "documentValue": null,
+          "standardValue": "SR",
+          "status": "match",
+          "confidence": 1,
+          "reason": "The invoice states no tax code; the standard's SR applies."
+        }
+      ]
+    },
+    {
+      "lineId": "L6",
+      "matchedSku": "SKU-2059",
+      "matchMethod": "semantic",
+      "matchScore": 0.91,
+      "resolution": "pending",
+      "flags": [
+        {
+          "field": "sku",
+          "documentValue": null,
+          "standardValue": "SKU-2059",
+          "status": "match",
+          "confidence": 0.91,
+          "reason": "No SKU on the line; matched semantically at 0.91."
+        },
+        {
+          "field": "description",
+          "documentValue": "Stainless steel mixing bowl, 28 cm",
+          "standardValue": "Stainless mixing bowl 28cm",
+          "status": "mismatch",
+          "confidence": 0.91,
+          "reason": "Matched by meaning, not by name. Accepting the document records it as an alias, so the next invoice matches without the embedding."
+        },
+        {
+          "field": "unitPrice",
+          "documentValue": 19.5,
+          "standardValue": 19.5,
+          "status": "match",
+          "confidence": 1,
+          "reason": "Billed at list price."
+        },
+        {
+          "field": "uom",
+          "documentValue": "EA",
+          "standardValue": "EA",
+          "status": "match",
+          "confidence": 1,
+          "reason": "Unit of measure agrees."
+        },
+        {
+          "field": "lineTotal",
+          "documentValue": 156.0,
+          "standardValue": 156.0,
+          "status": "match",
+          "confidence": 1,
+          "reason": "8 x S$19.50 = S$156.00."
+        },
+        {
+          "field": "taxCode",
+          "documentValue": null,
+          "standardValue": "SR",
+          "status": "match",
+          "confidence": 1,
+          "reason": "The invoice states no tax code; the standard's SR applies."
+        }
+      ]
+    },
+    {
+      "lineId": "L7",
+      "matchedSku": null,
+      "matchMethod": "none",
+      "matchScore": 0.0,
+      "resolution": "pending",
+      "flags": [
+        {
+          "field": "sku",
+          "documentValue": null,
+          "standardValue": null,
+          "status": "unmatched",
+          "confidence": 0,
+          "reason": "No SKU on the line, no alias hit, and no semantic match above 0.82."
+        },
+        {
+          "field": "description",
+          "documentValue": "Assorted seasonal produce crate",
+          "standardValue": null,
+          "status": "unmatched",
+          "confidence": 0,
+          "reason": "Nothing in the catalogue corresponds to this line."
+        },
+        {
+          "field": "quantity",
+          "documentValue": 3,
+          "standardValue": null,
+          "status": "unmatched",
+          "confidence": 0,
+          "reason": "Nothing to check the quantity against."
+        },
+        {
+          "field": "unitPrice",
+          "documentValue": 145.0,
+          "standardValue": null,
+          "status": "unmatched",
+          "confidence": 0,
+          "reason": "No list price to compare - this line is unpriced by the standard."
+        },
+        {
+          "field": "uom",
+          "documentValue": "CRATE",
+          "standardValue": null,
+          "status": "unmatched",
+          "confidence": 0,
+          "reason": "CRATE is not a unit the catalogue uses."
+        },
+        {
+          "field": "lineTotal",
+          "documentValue": 435.0,
+          "standardValue": null,
+          "status": "unmatched",
+          "confidence": 0,
+          "reason": "3 x S$145.00 = S$435.00; internally consistent, but there is nothing to check it against."
+        },
+        {
+          "field": "taxCode",
+          "documentValue": null,
+          "standardValue": null,
+          "status": "unmatched",
+          "confidence": 0,
+          "reason": "No matched product, so no tax code to apply."
+        }
+      ]
+    }
+  ],
+  "status": "ready",
+  "updatedAt": 1787793240000
+}

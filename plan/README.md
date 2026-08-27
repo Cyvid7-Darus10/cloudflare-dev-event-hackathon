@@ -1,92 +1,82 @@
 # How we split this
 
-Five people, two hours. The product is **Rectify**: upload a supplier invoice,
-flag every line against a canonical price list, let a person decide, write the
-decision back into the standard so the next invoice from that vendor is cleaner.
+**[`architecture.md`](../architecture.md) is the source of truth** — the product,
+the services, the frozen contract, the timeline, the drop ladder. Read it first.
+This directory is the working split: one file per person, saying what you own,
+what you can stub, and what will bite you.
 
-The source of truth for *what we are building* is [`../architecture.md`](../architecture.md).
-This folder is who owns which files, and the contract everyone codes against.
-
-## Decide this together, first. Ten minutes, then stop talking.
-
-The shapes live in [`contract.md`](contract.md). They match
-`src/shared/contracts.ts`. Siva pushes that file and the fixtures in the first
-ten minutes. Do not change them after that without saying so out loud.
-
-Until those exist, four of the five are guessing. Once they exist, everyone
-builds against fixtures. Nobody waits on a neighbour.
+Five people, two hours. The goal is that nobody waits on anybody.
 
 ## Who does what
 
-Architecture workstreams A–E, mapped onto the five of us. Each person owns
-files nobody else touches. Cross-workstream calls go through the frozen
-contract only.
+The letters are the ones in `architecture.md`. Use them in commit messages and
+in the room, so "who owns the matcher" never needs asking.
 
-| # | Owner | Owns | Files | Blocked by |
-|---|---|---|---|---|
-| A | **Siva** — [Platform](05-platform.md) | Deploy, bindings, D1 schema, contracts, fixtures, glue | `wrangler.jsonc`, `migrations/`, `fixtures/`, `src/shared/` | nothing |
-| B | **Bryan** — [Ingest](01-ingest.md) | Upload, R2, Workflow, extraction | `src/ingest/`, `src/workflows/ingest.ts` | the contract |
-| C | **Michelle** — [Match & diff](02-standard.md) | Matching, field diff, write-back, Vectorize seed | `src/matching/` | the contract |
-| D | **Zuriel** — [Session, API, publish](04-output.md) | Review-session DO, HTTP/WS API, PDF publish | `src/session/`, `src/api/` | the contract |
-| E | **Cyrus** — [Review UI](03-review-ui.md) | The flag board, Standard tab, upload → publish | `ui/` | the contract |
+| | Owner | Owns | Files nobody else touches |
+|---|---|---|---|
+| **A** | **Siva** — [Platform](a-platform.md) | The deploy, the bindings, the contract, the fixtures | `wrangler.jsonc`, `migrations/`, `fixtures/`, `src/shared/` |
+| **B** | **Bryan** — [Ingest](b-ingest.md) | Upload → R2 → Workflow → extraction | `src/ingest/`, `src/workflows/` |
+| **C** | **Michelle** — [Match & diff](c-match-diff.md) | Matching, flagging, and the write-back that makes the standard learn | `src/matching/` |
+| **D** | **Zuriel** — [Session, API, publish](d-session-api.md) | The Durable Object, the HTTP + WebSocket API, the PDF | `src/session/`, `src/api/` |
+| **E** | **Cyrus** — [UI](e-ui.md) | The flag board — the only screen a judge looks at | `public/` |
 
-Siva owns platform, and therefore owns the scope call.
+A is blocked by nobody and unblocks everybody. A goes first.
 
-Cyrus has already hit most of the traps listed in `05-platform.md`, so the two
-of you should spend ten minutes on that file together before anyone starts.
-
-**Michelle's workstream is the heart of the product.** The demo's payoff is a
-second invoice that auto-matches because the first one taught the standard.
-That write-back loop is hers; Zuriel calls it, he does not reimplement it.
-
-## The stack
-
-[`stack.md`](stack.md) lists the eleven Cloudflare services and why each one
-is load-bearing. Read the drop ladder in `05-platform.md` before you add
-anything extra.
+C is the hardest and the most valuable — the matcher plus the write-back *is*
+the product. Put your strongest there and protect their time.
 
 ## Work against fixtures, not against each other
 
-Siva ships three fixtures with the contract:
+`fixtures/` is A's, and it is canonical:
 
-- `fixtures/invoice-a.json` — an `ExtractedInvoice`
-- `fixtures/session-a.json` — a fully-flagged `ReviewSession`
-- `fixtures/standard.json` — ~40 `StandardProduct` rows, seeded *imperfectly*
+| File | What it is | Who needs it |
+|---|---|---|
+| `standard.json` | 40 `StandardProduct` rows, seeded imperfectly on purpose | C, D |
+| `invoice-a.json` | An `ExtractedInvoice` — B's output, before anyone can produce it | C |
+| `session-a.json` | A fully-flagged `ReviewSession` — C's output, before anyone can produce it | D, E |
+| `invoice-b.json` | The second invoice, same vendor, same odd naming | the demo |
 
-Build against those. Swap for the real neighbour at T+70, not before.
+Code against these plus [`src/shared/contracts.ts`](../src/shared/contracts.ts)
+from minute zero. Swap in the real thing at integration. **If you keep your own
+copy of a fixture, it will drift** — copy from `fixtures/`, never fork it.
 
-Cyrus already has a Vite app in `ui/` against an older catalogue fixture.
-Keep `ui/` — do not start a second frontend. Rebuild the screen against
-`fixtures/session-a.json` and the frozen types.
+The fixtures are consistent with each other by construction: every
+`documentValue` in `session-a.json` is what `invoice-a.json` actually says, and
+every `standardValue` is what `standard.json` actually holds. Keep it that way
+or the thing four people are building against is a lie.
 
-## The rule about the model
+## The two rules that do not bend
 
-The model reads, extracts, and matches. It does not decide.
+**The model reads and compares. It does not decide.** Extraction and matching
+propose; a person accepts, rejects or edits. If a path lets a model write to the
+standard without a human resolution, that path is wrong — including the
+convenience one someone adds at T+100.
 
-Every change to the standard passes through a person (`accept_document` or
-`edited`). `accept_standard` writes the corrected value into the published
-invoice and leaves the catalogue alone.
+**Never cut the chain.** Upload → extract → flag → edit → **write-back to the
+standard**. Everything else in the drop ladder can go. That chain is the product,
+and the write-back is the only reason the demo has a payoff.
 
-If a demo path lets a model write to the standard without someone accepting
-it, that path is wrong.
+## Timeline
 
-## What "done" means today
-
-Upload invoice A → flags fire → accept one, edit another → the standard
-learns → upload invoice B from the same vendor → it auto-matches → publish a
-corrected PDF.
-
-That chain is the product. Everything else is on the drop ladder.
-
-## Timeline (T+0 to T+120)
+From `architecture.md`, repeated because it is the thing people forget:
 
 | Time | What |
 |---|---|
-| **T+0–10** | Siva: paid-plan check, deploy skeleton with every binding, push contracts and fixtures. Everyone else: read the contract, agree it, start. |
-| **T+10–70** | Five parallel builds against fixtures. No integration attempts. |
-| **T+70–90** | Integration in order: Bryan→Michelle (extraction into matcher), Michelle→Zuriel (flags into the DO), Zuriel→Cyrus (real WebSocket). Siva floats. |
-| **T+90–105** | Publish path. Seed invoice B. Rehearse the learning moment. |
-| **T+105–115** | README pointer, final deploy. |
-| **T+115–120** | Demo rehearsal, twice, on the deployed URL. |
+| **T+0–10** | A: plan check, deploy skeleton with every binding, push contract + fixtures. Everyone else: read the contract, agree it out loud, start. |
+| **T+10–70** | Five parallel builds against fixtures. **No integration attempts.** |
+| **T+70–90** | Integration in order: B→C, C→D, D→E. A floats to whoever is behind. |
+| **T+90–105** | Publish path, then seed invoice B and rehearse the learning moment. |
+| **T+105–115** | Docs, final deploy. |
+| **T+115–120** | Rehearse the demo. Twice. |
 
 **Hard rule: last deploy at T+115.** Nothing merges after that.
+
+If you are behind at T+70, cut from the bottom of the drop ladder in
+`architecture.md`. Each cut is one person stopping, not the whole team. A calls
+it — not the person who does not want to stop.
+
+## Before anyone starts
+
+Ten minutes, together, on [`a-platform.md`](a-platform.md). Everything learned
+the hard way about Workers deploys is written down there, and a walkthrough is
+faster than five cold reads at the moment it breaks.

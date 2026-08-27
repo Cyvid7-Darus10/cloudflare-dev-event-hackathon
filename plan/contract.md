@@ -1,202 +1,102 @@
 # The contract
 
-**Frozen against `architecture.md`. From here, changes go through Siva and get
-announced.** A silent change to any shape here breaks four workstreams at once.
+**The contract is [`src/shared/contracts.ts`](../src/shared/contracts.ts), and
+it is frozen.** It is reproduced in `architecture.md`; the file is the copy that
+compiles, so the file wins. A owns it. Nobody changes it without saying so out
+loud — a silent change breaks four workstreams at once.
 
-The TypeScript lives at `src/shared/contracts.ts`. This file is the same
-agreement in prose. If the two disagree, `architecture.md` wins, then this
-file, then the `.ts`.
+This page holds what the type signatures cannot: the decisions behind them, and
+the two questions still open.
 
-This replaces the earlier catalogue-reconciliation contract (open field set,
-all-strings, `accepted` / `rejected`). We are reconciling **invoice line
-items** against a **price-list standard that learns**.
+## The shapes, and who hands what to whom
 
-## Ground rules
-
-- **A line is identified by `lineId`** (`L0`, `L1`, …), stable for the life of
-  a session. A product in the standard is identified by `sku`.
-- **Numbers are numbers.** `quantity`, `unitPrice`, `lineTotal`, `listPrice`,
-  `confidence`, `matchScore`, `version` are numeric. Do not stringify them.
-- **`null` means unknown / unmatched**, never "the customer sent empty". An
-  extracted SKU we could not read is `null`; an unmatched line has
-  `matchedSku: null` and `matchMethod: "none"`.
-- **Field names are camelCase** in JSON/TS. SQL columns are snake_case.
-
-## Extracted invoice (Bryan produces, Michelle consumes)
-
-```ts
-export type ExtractedLine = {
-  lineId: string;            // stable: `L0`, `L1`, ...
-  rawText: string;           // the line exactly as it appeared
-  sku: string | null;
-  description: string;
-  quantity: number;
-  unitPrice: number;
-  lineTotal: number;
-  uom: string | null;
-};
-
-export type ExtractedInvoice = {
-  docId: string;
-  vendor: string;
-  invoiceNumber: string;
-  issueDate: string;         // ISO
-  currency: string;
-  lineItems: ExtractedLine[];
-  totals: { subtotal: number; tax: number; total: number };
-};
+```
+B ──ExtractedInvoice──> C ──LineReview[]──> D ──ReviewSession──> E
+                        ^                   │
+                   StandardProduct[]        └── resolution ──> C's write-back
 ```
 
-## Standard product (D1 row, Michelle reads/writes)
+- **`ExtractedInvoice`** — what B's extraction produces. C's only input from B.
+- **`StandardProduct`** — a catalogue row. Lives in D1, cached in KV.
+- **`LineReview`** — one invoice line, matched and flagged. C's output.
+- **`ReviewSession`** — everything one document produced, held by the DO. What
+  E renders and what D broadcasts.
 
-```ts
-export type StandardProduct = {
-  sku: string;
-  canonicalName: string;
-  uom: string;
-  listPrice: number;
-  currency: string;
-  taxCode: string;
-  aliases: string[];
-  version: number;
-};
-```
+Nothing else crosses a workstream boundary. Your internals are yours.
 
-Closed field set. No open bag of extra keys.
+## Decisions the types do not carry
 
-## Flags and the review session (Michelle produces, Zuriel holds, Cyrus displays)
+**`lineId` is positional and stable: `L0`, `L1`, …** in the order the lines
+appeared on the document. It is the only handle D and E have on a line, so B
+must not renumber on a re-extraction.
 
-```ts
-export type FlagStatus = 'match' | 'mismatch' | 'unmatched';
-export type FlaggedField =
-  | 'sku' | 'description' | 'unitPrice' | 'uom' | 'quantity' | 'lineTotal' | 'taxCode';
+**Money is a `number`, in the invoice's `currency`.** No cents-as-integers, no
+strings. At two hours, the rounding risk is smaller than the conversion-bug
+risk. Compare prices with a tolerance, never with `===`.
 
-export type FieldFlag = {
-  field: FlaggedField;
-  documentValue: unknown;
-  standardValue: unknown;
-  status: FlagStatus;
-  confidence: number;        // 0..1
-  reason: string;            // human-readable, shown in the UI
-};
+**`unitPrice` mismatches use a 0.5% tolerance** — below that it is a rounding
+artefact, not a disagreement. Every other field is an exact comparison after
+normalising (lowercase, punctuation stripped, whitespace collapsed).
 
-export type LineReview = {
-  lineId: string;
-  matchedSku: string | null;
-  matchMethod: 'exact' | 'alias' | 'semantic' | 'none';
-  matchScore: number;
-  flags: FieldFlag[];
-  resolution: 'pending' | 'accept_standard' | 'accept_document' | 'edited';
-  finalValues?: Partial<ExtractedLine>;
-};
+**`flags` carries agreement as well as disagreement.** A field that matches gets
+a `FieldFlag` with `status: 'match'`. That is what lets E show a line as checked
+rather than silent — a judge should see that seven fields passed and one did
+not. A line is "needs a decision" when any flag is not `match`.
 
-export type ReviewSession = {
-  sessionId: string;
-  docId: string;
-  invoice: ExtractedInvoice;
-  lines: LineReview[];
-  status: 'extracting' | 'ready' | 'reviewing' | 'published';
-  updatedAt: number;
-};
-```
+**`lineTotal` is an arithmetic check, not a re-pricing.** Compare
+`quantity * unitPrice` against the stated `lineTotal`, using the document's own
+numbers. If the price is also disputed, that disagreement belongs to the
+`unitPrice` flag — re-pricing the line total as well double-counts one problem
+and reads as two.
 
-### How the UI maps onto `resolution`
+**`matchScore` is fixed per tier**, so E can show it without explaining it:
+`exact` = 1.0, `alias` = 0.95, `semantic` = the actual similarity (floor 0.82),
+`none` = 0. `confidence` on a `FieldFlag` is the confidence in *that comparison*
+— 1 for a deterministic one, the match score for anything resting on a semantic
+match.
 
-The flag board acts **per flag** (accept standard / accept document / edit).
-The type stores **one resolution per line**. Map it this way, do not invent a
-parallel shape:
+**`reason` is written for a reviewer, not for a log.** It says what differs and
+what it costs: *"Invoice bills S$72.90 against a list price of S$68.40 — 6.6%
+over, S$54.00 across 12 CTN."* E prints it verbatim and never has to compose a
+sentence. C writes them.
 
-- Each flag action writes that field into `finalValues`.
-- Write-back to the catalogue is per field: `accept_document` or `edited` on
-  `unitPrice` / `uom` updates the product; on `description` it also inserts an
-  alias. `accept_standard` never touches the catalogue.
-- `LineReview.resolution` rolls up: `pending` until every mismatch/unmatched
-  flag on the line is resolved; `edited` if any flag was typed; otherwise
-  `accept_document` if any flag took the invoice; otherwise `accept_standard`.
+**`unmatched` is all-or-nothing.** If `matchMethod` is `none`, every flag on
+that line is `unmatched`. There is nothing to compare against, so no field on it
+can be a `match` or a `mismatch`.
 
-## Matching (Michelle, first hit wins)
+**`finalValues` is only for the published document.** It is what the corrected
+invoice prints. It never writes to the standard on its own — the write-back is
+driven by `resolution`, not by this field.
 
-1. Line `sku` equals `standard_products.sku` → `exact`, score `1.0`
-2. Normalised `description` hits `standard_aliases.alias` → `alias`, score `0.95`
-3. Embed description with `@cf/baai/bge-base-en-v1.5`, Vectorize top hit ≥ `0.82`
-   → `semantic`, score = similarity
-4. Otherwise → `none`; every field flagged `unmatched`
+## What each resolution does
 
-## Diff (Michelle, pure TS, no network)
+The learning loop. Get this wrong and the demo has no payoff.
 
-- `unitPrice` — mismatch if it differs from `listPrice` by more than 0.5%.
-  `reason` states the delta and the money at stake (`delta × quantity`).
-- `uom` — mismatch on any difference.
-- `description` — mismatch if it is not the canonical name and not a known
-  alias. Accepting this one is how the system learns names.
-- `lineTotal` — recompute `quantity * unitPrice` and flag arithmetic errors.
-- `taxCode` — mismatch against the standard's code.
+| `resolution` | Meaning | Standard | Published invoice |
+|---|---|---|---|
+| `accept_standard` | The document was wrong | untouched | `finalValues` gets the standard's value |
+| `accept_document` | The standard was stale | `UPDATE`, `version` bumped, alias inserted, Vectorize upserted, audit row, KV purged | keeps the document's value |
+| `edited` | Both were wrong; the operator typed a third value | same path as `accept_document`, with `actor` recorded | gets the typed value |
 
-## Write-back (Michelle owns the functions, Zuriel calls them)
+`pending` does nothing. A session can publish with pending lines; they simply
+carry the document's values through.
 
-| Resolution | Catalogue | Published invoice |
-|---|---|---|
-| `accept_standard` | unchanged | `finalValues` take the standard |
-| `accept_document` | `UPDATE standard_products` (bump `version`), insert vendor `description` as alias, Vectorize upsert, audit row, purge KV snapshot | `finalValues` take the document |
-| `edited` | same write-back as `accept_document`, with `actor` recorded | `finalValues` take the typed value |
+## Two questions still open — settle them in the first ten minutes
 
-The model never writes here.
+**1. `taxCode` is a `FlaggedField`, but `ExtractedLine` has no `taxCode`.** So
+there is nothing on the document to compare the standard's code against. Either
+B extracts a per-line tax code, or the flag is always informational — the
+standard's code, shown, never mismatching. The fixtures assume the second
+(`documentValue: null`, `status: 'match'`). **A decides; C and E both depend on
+it.** Do not change `ExtractedLine` to fix this without telling everyone.
 
-## D1 schema (Siva owns the migration, everyone reads this)
-
-```sql
-CREATE TABLE standard_products (
-  sku TEXT PRIMARY KEY, canonical_name TEXT NOT NULL, uom TEXT NOT NULL,
-  list_price REAL NOT NULL, currency TEXT NOT NULL, tax_code TEXT NOT NULL,
-  version INTEGER NOT NULL DEFAULT 1, updated_at INTEGER NOT NULL
-);
-CREATE TABLE standard_aliases (
-  id INTEGER PRIMARY KEY AUTOINCREMENT, sku TEXT NOT NULL, alias TEXT NOT NULL,
-  source_doc_id TEXT, created_at INTEGER NOT NULL
-);
-CREATE UNIQUE INDEX idx_alias ON standard_aliases(alias);
-CREATE TABLE standard_versions (          -- the audit log
-  id INTEGER PRIMARY KEY AUTOINCREMENT, sku TEXT NOT NULL, field TEXT NOT NULL,
-  old_value TEXT, new_value TEXT, session_id TEXT, actor TEXT,
-  created_at INTEGER NOT NULL
-);
-CREATE TABLE documents (
-  doc_id TEXT PRIMARY KEY, r2_key TEXT NOT NULL, filename TEXT,
-  vendor TEXT, status TEXT NOT NULL, created_at INTEGER NOT NULL
-);
-CREATE TABLE sessions (
-  session_id TEXT PRIMARY KEY, doc_id TEXT NOT NULL, status TEXT NOT NULL,
-  created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
-);
-```
-
-Seed `standard_products` from `fixtures/standard.json`. Seed it imperfectly — a
-couple of stale prices and one missing alias — so the demo has real flags.
-
-## HTTP / WebSocket (Zuriel owns, everyone else calls)
-
-| Method | Path | Purpose |
-|---|---|---|
-| `POST` | `/api/documents` | Upload → R2 → Workflow. Returns `{ sessionId }`. `?demo=1` seeds from `fixtures/invoice-a.json` and skips the LLM. |
-| `GET` | `/api/sessions/:id` | Current `ReviewSession`. |
-| `WS` | `/api/sessions/:id/ws` | Live flag board. |
-| `POST` | `/api/sessions/:id/publish` | HTML → Browser Rendering → R2. Returns a download URL. |
-| `GET` | `/api/standard` | Catalogue snapshot. |
-| `GET` | `/api/audit` | `standard_versions` rows. |
-
-## Fixtures (Siva, T+0–10)
-
-| File | Shape | Unblocks |
-|---|---|---|
-| `fixtures/invoice-a.json` | `ExtractedInvoice` | Bryan's tests, Michelle, `?demo=1` |
-| `fixtures/session-a.json` | fully-flagged `ReviewSession` | Cyrus, Zuriel |
-| `fixtures/standard.json` | ~40 `StandardProduct` rows | Michelle, D1 seed |
-| `fixtures/invoice-a.pdf` / `invoice-b.pdf` | demo PDFs | Bryan, the demo |
-
-`ui/src/fixture.ts` and `ui/src/types.ts` still describe the old catalogue
-contract. Cyrus replaces them with these shapes; do not keep both.
+**2. There is no WebSocket message contract.** D broadcasts and E listens, but
+the envelope — message type, payload, how a resolution is sent — is not in
+`contracts.ts`. E codes against `fixtures/session-a.json` until integration, so
+this is not blocking until T+70, and it is guaranteed to bite at T+70.
+**D and E: agree the envelope now, in three lines, and put it in this file.**
 
 ## Changing this
 
-Changes go through Siva and get announced. Architecture's rule: nobody changes
-`src/shared/contracts.ts` after the first push without saying so out loud.
+Through A, announced out loud, in the room. Not in a commit message nobody
+reads.

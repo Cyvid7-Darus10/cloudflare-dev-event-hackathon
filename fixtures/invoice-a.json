@@ -1,0 +1,90 @@
+{
+  "docId": "doc-a-0001",
+  "vendor": "Northwind Trading Pte Ltd",
+  "invoiceNumber": "NW-INV-24817",
+  "issueDate": "2026-08-21",
+  "currency": "SGD",
+  "lineItems": [
+    {
+      "lineId": "L0",
+      "rawText": "SKU-2027  Enamel mug 350ml            24 EA   @ 11.20      268.80",
+      "sku": "SKU-2027",
+      "description": "Enamel mug 350ml",
+      "quantity": 24,
+      "unitPrice": 11.20,
+      "lineTotal": 268.80,
+      "uom": "EA"
+    },
+    {
+      "lineId": "L1",
+      "rawText": "SKU-1002  Cold-pressed rapeseed oil 5L  12 CTN  @ 72.90      874.80",
+      "sku": "SKU-1002",
+      "description": "Cold-pressed rapeseed oil 5L",
+      "quantity": 12,
+      "unitPrice": 72.90,
+      "lineTotal": 874.80,
+      "uom": "CTN"
+    },
+    {
+      "lineId": "L2",
+      "rawText": "SKU-3038  Paper straws 200mm            40 EA   @ 31.00    1,240.00",
+      "sku": "SKU-3038",
+      "description": "Paper straws 200mm",
+      "quantity": 40,
+      "unitPrice": 31.00,
+      "lineTotal": 1240.00,
+      "uom": "EA"
+    },
+    {
+      "lineId": "L3",
+      "rawText": "SKU-4471  Widget Pro 2K                  2 EA   @ 289.00     578.00",
+      "sku": "SKU-4471",
+      "description": "Widget Pro 2K",
+      "quantity": 2,
+      "unitPrice": 289.00,
+      "lineTotal": 578.00,
+      "uom": "EA"
+    },
+    {
+      "lineId": "L4",
+      "rawText": "SKU-2078  Linen tea towel pack of 3     15 PACK @ 16.00      250.00",
+      "sku": "SKU-2078",
+      "description": "Linen tea towel pack of 3",
+      "quantity": 15,
+      "unitPrice": 16.00,
+      "lineTotal": 250.00,
+      "uom": "PACK"
+    },
+    {
+      "lineId": "L5",
+      "rawText": "          Sanitiser 5 Litre              6 EA   @ 27.60      165.60",
+      "sku": null,
+      "description": "Sanitiser 5 Litre",
+      "quantity": 6,
+      "unitPrice": 27.60,
+      "lineTotal": 165.60,
+      "uom": "EA"
+    },
+    {
+      "lineId": "L6",
+      "rawText": "          Stainless steel mixing bowl, 28 cm   8 EA @ 19.50   156.00",
+      "sku": null,
+      "description": "Stainless steel mixing bowl, 28 cm",
+      "quantity": 8,
+      "unitPrice": 19.50,
+      "lineTotal": 156.00,
+      "uom": "EA"
+    },
+    {
+      "lineId": "L7",
+      "rawText": "          Assorted seasonal produce crate  3 CRATE @ 145.00   435.00",
+      "sku": null,
+      "description": "Assorted seasonal produce crate",
+      "quantity": 3,
+      "unitPrice": 145.00,
+      "lineTotal": 435.00,
+      "uom": "CRATE"
+    }
+  ],
+  "totals": { "subtotal": 3968.20, "tax": 357.14, "total": 4325.34 }
+}

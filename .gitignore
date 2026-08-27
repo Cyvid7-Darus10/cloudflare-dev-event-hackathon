@@ -5,3 +5,6 @@ dist/
 # secrets stay out of git
 .env
 .dev.vars
+
+# wrangler local state
+.wrangler/

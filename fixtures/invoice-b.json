@@ -1,0 +1,50 @@
+{
+  "docId": "doc-b-0002",
+  "vendor": "Northwind Trading Pte Ltd",
+  "invoiceNumber": "NW-INV-24902",
+  "issueDate": "2026-08-26",
+  "currency": "SGD",
+  "lineItems": [
+    {
+      "lineId": "L0",
+      "rawText": "          Widget Pro 2K                  3 EA   @ 289.00     867.00",
+      "sku": null,
+      "description": "Widget Pro 2K",
+      "quantity": 3,
+      "unitPrice": 289.00,
+      "lineTotal": 867.00,
+      "uom": "EA"
+    },
+    {
+      "lineId": "L1",
+      "rawText": "SKU-1002  Cold-pressed rapeseed oil 5L   8 CTN  @ 72.90      583.20",
+      "sku": "SKU-1002",
+      "description": "Cold-pressed rapeseed oil 5L",
+      "quantity": 8,
+      "unitPrice": 72.90,
+      "lineTotal": 583.20,
+      "uom": "CTN"
+    },
+    {
+      "lineId": "L2",
+      "rawText": "          Stainless steel mixing bowl, 28 cm   6 EA @ 19.50   117.00",
+      "sku": null,
+      "description": "Stainless steel mixing bowl, 28 cm",
+      "quantity": 6,
+      "unitPrice": 19.50,
+      "lineTotal": 117.00,
+      "uom": "EA"
+    },
+    {
+      "lineId": "L3",
+      "rawText": "SKU-2027  Enamel mug 350ml              12 EA   @ 11.20      134.40",
+      "sku": "SKU-2027",
+      "description": "Enamel mug 350ml",
+      "quantity": 12,
+      "unitPrice": 11.20,
+      "lineTotal": 134.40,
+      "uom": "EA"
+    }
+  ],
+  "totals": { "subtotal": 1701.60, "tax": 153.14, "total": 1854.74 }
+}
