@@ -154,11 +154,88 @@ button { font: inherit; cursor: pointer; }
 .hint { font-size: var(--t-xs); color: var(--ink-3); flex-basis: 100%; }
 .hint b { color: var(--lost); font-weight: 600; }
 
-.editor { display: grid; gap: var(--s-2); padding: 0 var(--s-4) var(--s-3); }
-.editor__row { display: grid; grid-template-columns: minmax(90px,140px) 1fr; gap: var(--s-2); align-items: center; }
-.editor__row label { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-2); }
-.editor input { font-family: var(--mono); font-size: var(--t-sm); padding: 6px 9px; border: 1px solid var(--doc-edge); border-radius: var(--r-md); background: var(--paper); color: var(--ink); min-width: 0; }
-.editor__acts { display: flex; gap: var(--s-2); }
+/* Editing is a different mode, so it gets its own shape rather than floating
+   in the card. Inset to the same edge the flag cards sit on: a stray edge here
+   reads as a bug. */
+.editor {
+  margin: var(--s-3) var(--s-4) var(--s-4);
+  padding: var(--s-3);
+  background: var(--doc-soft);
+  border: 1px solid var(--doc-edge);
+  border-radius: var(--r-md);
+}
+
+.editor__lead {
+  margin: 0 0 var(--s-3);
+  font-size: var(--t-xs);
+  color: var(--ink-2);
+  max-width: 64ch;
+}
+
+/* 10px within the group. The action row below sits 20px away, so the split
+   between "the fields" and "what to do with them" carries without a rule. */
+.editor__fields { display: grid; gap: 10px; }
+
+.editor__row {
+  display: grid;
+  grid-template-columns: minmax(88px, 132px) 1fr;
+  gap: var(--s-3);
+  align-items: center;
+}
+@media (max-width: 560px) {
+  .editor__row { grid-template-columns: 1fr; gap: var(--s-1); }
+}
+
+.editor__row label {
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  color: var(--ink-2);
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  min-width: 0;
+}
+.editor__req {
+  font-family: var(--ui);
+  font-size: var(--t-2xs);
+  color: var(--doc);
+  font-weight: 500;
+}
+
+.editor input {
+  font-family: var(--mono);
+  font-size: var(--t-sm);
+  padding: 7px 10px;
+  border: 1px solid var(--doc-edge);
+  border-radius: var(--r-sm);
+  background: var(--paper);
+  color: var(--ink);
+  min-width: 0;
+  width: 100%;
+}
+.editor input::placeholder { color: var(--ink-4); }
+.editor input:focus { outline: 2px solid var(--doc); outline-offset: -1px; border-color: transparent; }
+
+/* Width says what the field is. A four-character price in a full-width box
+   reads as a mistake. */
+.editor input[data-w="xs"] { max-width: 10ch; }
+.editor input[data-w="sm"] { max-width: 20ch; }
+.editor input[data-w="full"] { max-width: 52ch; }
+
+.editor__acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-block-start: 20px;
+  padding-block-start: var(--s-3);
+  border-block-start: 1px solid var(--doc-edge);
+}
+.act--primary {
+  border-color: var(--doc);
+  background: var(--doc);
+  color: #fff;
+}
+.act--primary:hover:not(:disabled) { border-color: #255c96; background: #255c96; color: #fff; }
 
 /* ---- standard tab ---- */
 .panel { background: var(--paper); border: 1px solid var(--rule); border-radius: var(--r-lg); padding: var(--s-4); margin-bottom: var(--s-3); }
@@ -198,3 +275,52 @@ td.n { color: var(--ink); }
   font-family: var(--mono); font-size: var(--t-2xs); color: var(--ink-3); padding: 1px 0;
 }
 .agrees__row b { color: var(--ink-2); font-weight: 500; }
+
+/* ---- publish confirmation ---- */
+.cf { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-3); margin-block: var(--s-3); }
+@media (max-width: 720px) { .cf { grid-template-columns: 1fr; } }
+
+.cf__half {
+  border: 1px solid var(--rule);
+  border-radius: var(--r-md);
+  padding: var(--s-3);
+  background: var(--paper-2);
+}
+/* Teaching the standard reaches past this invoice, so it is the half that
+   carries weight. */
+.cf__half--teach { border-color: var(--doc-edge); background: var(--doc-soft); }
+
+.cf__half h3 { margin: 0 0 var(--s-1); font-size: var(--t-sm); font-weight: 600; }
+.cf__half--teach h3 { color: var(--doc); }
+.cf__note { margin: 0 0 var(--s-3); font-size: var(--t-xs); color: var(--ink-3); max-width: 46ch; }
+
+.cf__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--s-3);
+  padding-block: 6px;
+  border-block-start: 1px solid var(--rule-2);
+  font-size: var(--t-xs);
+  align-items: baseline;
+}
+.cf__row b { font-weight: 500; color: var(--ink); }
+.cf__row span { font-family: var(--mono); font-size: var(--t-2xs); color: var(--ink-3); text-align: end; }
+
+.cf__result {
+  margin: var(--s-3) 0 0;
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--warn-soft);
+  border: 1px solid #eddcbd;
+  font-size: var(--t-sm);
+  color: var(--ink-2);
+}
+
+.cf__acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-block-start: 20px;
+  padding-block-start: var(--s-3);
+  border-block-start: 1px solid var(--rule);
+}

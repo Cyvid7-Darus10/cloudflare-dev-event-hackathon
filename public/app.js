@@ -35,6 +35,10 @@ const state = {
   tab: "board",
   /** lineId -> draft field values while an operator is editing. */
   editing: new Map(),
+  /** True once publish is pressed: show what will be written before writing it. */
+  confirming: false,
+  /** Set when publishing runs, so the page can say what actually happened. */
+  published: null,
 };
 
 /* ---------- helpers ---------- */
@@ -87,7 +91,11 @@ function render() {
   const s = state.session;
   if (!s) return;
 
-  root.innerHTML = state.tab === "board" ? board(s) : standard(s);
+  root.innerHTML = state.confirming
+    ? confirmSheet(s)
+    : state.tab === "board"
+      ? board(s)
+      : standard(s);
   bar.innerHTML = barHtml(s);
   wire();
 }
@@ -285,28 +293,63 @@ function resolutionRow(r, unmatched, exposure, currency) {
   `;
 }
 
-/** Field-level correction. The only route to a third value. */
+/**
+ * Field-level correction. The only route to a third value.
+ *
+ * Widths say what a field is. A four-character price in a full-width box reads
+ * as a mistake, and it costs a reviewer a beat to work out that the box is not
+ * expecting a sentence.
+ */
+const FIELD_WIDTH = {
+  sku: "sm",
+  uom: "xs",
+  taxCode: "sm",
+  quantity: "xs",
+  unitPrice: "sm",
+  lineTotal: "sm",
+  description: "full",
+};
+
 function editor(s, r) {
-  const draft = state.editing.get(r.lineId);
+  const draft = state.editing.get(r.lineId) ?? {};
   const line = lineOf(s, r.lineId);
-  const fields = r.matchMethod === "none"
+  const unmatched = r.matchMethod === "none";
+  const fields = unmatched
     ? ["sku", "description", "unitPrice", "uom"]
     : r.flags.filter((f) => f.status !== "match").map((f) => f.field);
 
   return `
     <div class="editor">
-      ${fields
-        .map(
-          (f) => `
-        <div class="editor__row">
-          <label for="ed-${r.lineId}-${f}">${esc(f)}</label>
-          <input id="ed-${r.lineId}-${f}" data-draft="${r.lineId}" data-field="${f}"
-                 value="${esc(draft[f] ?? line?.[f] ?? "")}" />
-        </div>`
-        )
-        .join("")}
+      <p class="editor__lead">
+        ${
+          unmatched
+            ? `Give this line a SKU from the standard. That is what teaches the match, so the next invoice with this wording finds it on its own.`
+            : `Enter the values that should stand. They replace both sides and update the standard.`
+        }
+      </p>
+
+      <div class="editor__fields">
+        ${fields
+          .map((f) => {
+            const required = unmatched && f === "sku";
+            return `
+          <div class="editor__row">
+            <label for="ed-${r.lineId}-${f}">
+              ${esc(f)}${required ? `<span class="editor__req" aria-hidden="true">needed</span>` : ""}
+            </label>
+            <input id="ed-${r.lineId}-${f}" data-draft="${r.lineId}" data-field="${f}"
+                   data-w="${FIELD_WIDTH[f] ?? "full"}"
+                   ${required ? 'placeholder="SKU-0000" required' : ""}
+                   value="${esc(draft[f] ?? line?.[f] ?? "")}" />
+          </div>`;
+          })
+          .join("")}
+      </div>
+
       <div class="editor__acts">
-        <button class="act act--doc" data-save="${r.lineId}">Save and update the standard</button>
+        <button class="act act--primary" data-save="${r.lineId}">
+          ${unmatched ? "Assign and teach the standard" : "Save and update the standard"}
+        </button>
         <button class="act" data-cancel="${r.lineId}">Cancel</button>
       </div>
     </div>
@@ -367,6 +410,58 @@ function auditRows(s, r) {
     );
 }
 
+/* ---------- publish ---------- */
+
+/**
+ * What publishing will do, before it does it.
+ *
+ * Two different things happen and they deserve separating: this invoice gets
+ * corrected, and the standard gets taught. A reviewer should see which of their
+ * decisions change the catalogue for everyone else before any of it is written.
+ */
+function confirmSheet(s) {
+  const corrected = s.lines.filter((l) => l.resolution === "accept_standard");
+  const taught = s.lines.filter(
+    (l) => l.resolution === "accept_document" || l.resolution === "edited"
+  );
+
+  const row = (r) => {
+    const line = lineOf(s, r.lineId);
+    const diffs = r.flags.filter((f) => f.status !== "match").map((f) => f.field);
+    return `<div class="cf__row">
+      <b>${esc(line?.description ?? r.lineId)}</b>
+      <span>${diffs.length ? esc(diffs.join(", ")) : "no field differences"}</span>
+    </div>`;
+  };
+
+  return `
+    <div class="panel">
+      <h2>Before this is written</h2>
+      <p>Nothing has changed yet. Publishing does two separate things.</p>
+
+      <div class="cf">
+        <section class="cf__half">
+          <h3>${corrected.length} ${corrected.length === 1 ? "line" : "lines"} corrected on this invoice</h3>
+          <p class="cf__note">The standard was right. Corrected values go into the published PDF and the catalogue is untouched.</p>
+          ${corrected.length ? corrected.map(row).join("") : `<p class="empty">None.</p>`}
+        </section>
+        <section class="cf__half cf__half--teach">
+          <h3>${taught.length} ${taught.length === 1 ? "change" : "changes"} to the standard</h3>
+          <p class="cf__note">These affect every future invoice, not just this one. The vendor's wording is kept as an alias so the next document matches without asking.</p>
+          ${taught.length ? taught.map(row).join("") : `<p class="empty">None.</p>`}
+        </section>
+      </div>
+
+      ${state.published ? `<p class="cf__result">${esc(state.published)}</p>` : ""}
+
+      <div class="cf__acts">
+        <button class="act act--primary" id="confirm-publish">Publish and write back</button>
+        <button class="act" id="confirm-back">Back to the board</button>
+      </div>
+    </div>
+  `;
+}
+
 /* ---------- bottom bar ---------- */
 
 function barHtml(s) {
@@ -411,6 +506,19 @@ function wire() {
       state.editing.set(i.dataset.draft, d);
     })
   );
+  const pub = document.getElementById("publish");
+  if (pub) pub.addEventListener("click", () => { state.confirming = true; render(); });
+
+  const back = document.getElementById("confirm-back");
+  if (back) back.addEventListener("click", () => {
+    state.confirming = false;
+    state.published = null;
+    render();
+  });
+
+  const go = document.getElementById("confirm-publish");
+  if (go) go.addEventListener("click", publish);
+
   document.querySelectorAll("[data-save]").forEach((b) =>
     b.addEventListener("click", () => {
       const id = b.dataset.save;
@@ -437,6 +545,41 @@ function resolve(lineId, resolution, finalValues) {
         : l
     ),
   };
+  render();
+}
+
+/**
+ * Send the review.
+ *
+ * D's endpoint does not exist yet. Rather than a button that looks like it
+ * worked, this reports what it tried and what came back, so the gap is visible
+ * rather than silent.
+ */
+async function publish() {
+  const btn = document.getElementById("confirm-publish");
+  if (btn) { btn.disabled = true; btn.textContent = "Publishing…"; }
+
+  const body = {
+    sessionId: state.session.sessionId,
+    resolutions: state.session.lines.map((l) => ({
+      lineId: l.lineId,
+      resolution: l.resolution,
+      finalValues: l.finalValues,
+    })),
+  };
+
+  try {
+    const res = await fetch(`/api/sessions/${state.session.sessionId}/publish`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    state.published = res.ok
+      ? "Published. The corrected invoice is ready and the standard has been updated."
+      : `The publish endpoint answered ${res.status}. Workstream D owns POST /api/sessions/:id/publish; until it exists there is nothing for this to call.`;
+  } catch (err) {
+    state.published = `Could not reach the publish endpoint: ${err instanceof Error ? err.message : String(err)}. Workstream D owns it.`;
+  }
   render();
 }
 
