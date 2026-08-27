@@ -1,6 +1,7 @@
 node_modules/
 dist/
 *.tsbuildinfo
+.DS_Store
 
 # secrets stay out of git
 .env

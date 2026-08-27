@@ -10,6 +10,10 @@
  * rather than by a green build.
  */
 
+import { handleUpload } from "./ingest/upload";
+
+export { IngestWorkflow } from "./workflows/ingest";
+
 const SERVICE = "rectify";
 
 const json = (body: unknown, status = 200): Response =>
@@ -30,6 +34,12 @@ export default {
 
     try {
       if (pathname === "/api/health") return health(env);
+
+      // Workstream B. Upload lands here; extraction happens in the Workflow,
+      // so this answers with a sessionId rather than waiting for the model.
+      if (pathname === "/api/documents" && request.method === "POST") {
+        return handleUpload(request, env as never);
+      }
 
       return json({ error: `No route for ${request.method} ${pathname}` }, 404);
     } catch (cause) {
