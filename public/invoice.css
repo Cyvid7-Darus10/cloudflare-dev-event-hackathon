@@ -239,7 +239,11 @@ table.lines { border-collapse: collapse; width: 100%; min-width: 740px; font-siz
 .lines td.desc { min-width: 220px; }
 
 /* A corrected row carries a mark on its leading edge, the way a checker would
-   flag a paper copy. Tinting whole rows would read as highlighter everywhere. */
+   flag a paper copy. Tinting whole rows would read as highlighter everywhere.
+   The first column carries left padding the other cells do not need: the mark
+   is an inset shadow, and without the gutter it paints over the SKU itself. */
+.lines th:first-child,
+.lines td:first-child { padding-inline-start: 10px; }
 .lines tr.changed td:first-child { box-shadow: inset 3px 0 0 var(--mark); }
 .lines tr.open td:first-child { box-shadow: inset 3px 0 0 var(--open); }
 .lines tr.open td { background: var(--open-soft); }
