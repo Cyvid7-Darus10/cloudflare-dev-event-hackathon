@@ -9,6 +9,7 @@
 import { getAgentByName, routeAgentRequest } from "agents";
 import { handleUpload, type IngestParams } from "./ingest/upload";
 import { handleAudit, handleSessions, handleStandard } from "./api/sessions.ts";
+import { handleChat } from "./api/chat";
 import {
   clientKey,
   isIngestParams,
@@ -101,6 +102,7 @@ async function route(
   if (pathname === "/api/health") return health(env);
   if (pathname === "/api/standard") return handleStandard(env);
   if (pathname === "/api/audit") return handleAudit(env, new URL(request.url));
+  if (pathname === "/api/chat") return handleChat(request, env);
 
   if (pathname === "/api/documents" && request.method === "POST") {
     return handleUpload(request, env, {
