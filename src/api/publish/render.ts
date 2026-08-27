@@ -1,6 +1,11 @@
 /**
  * The corrected invoice, as a page.
  *
+ * Styles live in `public/invoice.css`, linked rather than inlined: the CSP is
+ * `style-src 'self'` with no `unsafe-inline`, so an inline <style> block and
+ * every `style=` attribute are silently dropped, which left this page
+ * rendering as bare HTML. Same origin satisfies 'self'.
+ *
  * `renderInvoice` is pure and synchronous: data in, HTML string out. No env, no
  * fetch, no binding. It runs under plain node in milliseconds, so the visual
  * loop is a browser refresh rather than a Worker restart, and it is trivially
@@ -15,7 +20,6 @@
 
 import type { ExtractedLine } from "../../shared/contracts.ts";
 import { money, toCents, type CorrectedInvoice, type CorrectedLine } from "./correct.ts";
-import { STYLES } from "./styles.ts";
 
 export type RenderMeta = {
   generatedAt: string;
@@ -214,7 +218,7 @@ export function renderInvoice(doc: CorrectedInvoice, meta: RenderMeta): string {
     : "";
 
   const learned = doc.standardUpdatedCount > 0
-    ? `<p style="margin-top:var(--s-3);color:var(--ink-3);font-size:var(--t-2xs)">
+    ? `<p class="learned">
         ${esc(doc.standardUpdatedCount)} further ${doc.standardUpdatedCount === 1 ? "line was" : "lines were"}
         reviewed and found correct as invoiced. The price list was updated to match, so the next
         invoice from this supplier will not raise them.</p>`
@@ -237,7 +241,10 @@ export function renderInvoice(doc: CorrectedInvoice, meta: RenderMeta): string {
 <meta name="x-content-hash" content="${esc(meta.contentHash)}">
 <meta name="x-session-id" content="${esc(doc.sessionId)}">
 <meta name="x-data-source" content="${esc(meta.dataSource)}">
-<style>${STYLES}</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/invoice.css">
 </head>
 <body>
 <div class="wrap"><div class="sheet">
@@ -276,8 +283,8 @@ ${banner}
     ${linesTable(doc)}
     ${totalsBlock(doc)}
     <div class="legend">
-      <span><i class="swatch" style="background:var(--incoming)"></i> Corrected by a reviewer</span>
-      <span><i class="swatch" style="background:var(--pending)"></i> Unresolved flag</span>
+      <span><i class="swatch swatch--corrected"></i> Corrected by a reviewer</span>
+      <span><i class="swatch swatch--open"></i> Unresolved flag</span>
       <span>Struck values are what the supplier invoiced.</span>
     </div>
   </section>
